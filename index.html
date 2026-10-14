@@ -1,0 +1,2865 @@
+<!DOCTYPE html>
+<!-- v1.0.9 -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A customizable web dashboard for Wichita.">
+    <meta property="og:title" content="Wichita Dashboard">
+    <meta property="og:description" content="A customizable web dashboard for Wichita.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://twotreeservices.com/wichita/">
+    <meta property="og:site_name" content="Wichita Dashboard">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Wichita Dashboard">
+    <meta name="twitter:description" content="A customizable web dashboard for Wichita.">
+    <title>Wichita Dashboard</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="https://twotreeservices.com/wichita/style.css?v=1.0.9">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+    <header>
+        <div class="header-left">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <rect x="8" y="39" width="32" height="4" rx="1" fill="#22d3ee" fill-opacity="0.25"/>
+                <path d="M24 12 L18 28 L20 36 L26 36 L28 28 Z" stroke="#22d3ee" stroke-width="4" stroke-linejoin="round" fill="#1e2937"/>
+                <circle cx="24" cy="18" r="6" stroke="#22d3ee" stroke-width="3" fill="#1e2937"/>
+                <path d="M18 26 L12 18" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+                <path d="M30 26 L36 18" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <div>
+                <div class="header-title">Wichita Dashboard</div>
+                <div class="header-subtitle">Kansas Vibe Code - v1.0.9</div>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <a href="https://linkedin.com/in/lindavidy"
+               class="header-linkedin-link"
+               target="_blank"
+               rel="noopener noreferrer">App Manager LinkedIn</a>
+            <button onclick="toggleModal()" class="hamburger" type="button" aria-label="Customize dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="dashboard-grid" class="grid-container"></div>
+
+    <div id="modal-backdrop" onclick="if(event.target.id === 'modal-backdrop') toggleModal()">
+        <div class="modal-content" onclick="event.stopImmediatePropagation()">
+            <div class="modal-header">
+                <h2 style="font-size: 20px; font-weight: 600;">Customize Dashboard</h2>
+                <button onclick="toggleModal()" class="close-btn">×</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="slot-control">
+                    <span class="label">NUMBER OF SLOTS</span>
+                    <span id="slot-count-display" class="slot-number">8</span>
+                </div>
+                <input type="range" id="slot-slider" min="2" max="24" value="8" step="1"
+                       oninput="updateSlotCount(this.value)">
+                
+                <div class="widget-palette-section">
+                    <p class="section-label">AVAILABLE WIDGETS</p>
+                    <div id="widget-palette" class="widget-palette-folders"></div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="toggleModal()" style="padding: 10px 24px; background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 10px; font-weight: 500;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="quicklinks-modal">
+        <div class="quick-modal-content" onclick="event.stopImmediatePropagation()">
+            <div class="quick-modal-header">
+                <h3 style="font-size: 19px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+                    <span>🔗</span> Edit Quick Links
+                </h3>
+                <button onclick="closeQuickLinksModal()" class="close-btn" style="font-size: 28px;">×</button>
+            </div>
+            
+            <div class="quick-modal-body" id="quicklinks-form">
+            </div>
+            
+            <div class="quick-modal-footer">
+                <button onclick="closeQuickLinksModal()" class="modal-btn modal-btn-cancel">Cancel</button>
+                <button onclick="saveQuickLinks()" class="modal-btn modal-btn-save">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Shared helpers
+        function updateFooter(containerElement, state = {}) {
+            const footerEl = containerElement.parentElement ? containerElement.parentElement.querySelector('.widget-footer') : null;
+            if (!footerEl) return;
+            let footerText = 'Last Updated: --:--';
+            if (state.lastUpdated) {
+                const last = new Date(state.lastUpdated);
+                footerText = `Last Updated: ${last.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+            }
+            footerEl.textContent = footerText;
+        }
+
+        async function proxyFetch(targetUrl) {
+            const res = await fetch("https://ttpr.twotreeservices.com/proxy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ targetUrl: targetUrl, method: "GET" })
+            });
+            if (!res.ok) throw new Error(`Proxy error ${res.status}`);
+            return res;
+        }
+
+        function createLineChart(containerElement, canvasId, labels, datasets) {
+            const canvas = containerElement.querySelector('#' + canvasId);
+            if (!canvas) return;
+            const existing = Chart.getChart(canvas);
+            if (existing) existing.destroy();
+            new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: datasets.length > 1,
+                            position: 'top',
+                            labels: { color: '#e2e8f0', font: { size: 11 }, boxWidth: 12 }
+                        }
+                    },
+                    scales: {
+                        y: { grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 } } },
+                        x: { grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function getSundayOfWeek(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const weekday = d.getDay();
+            return new Date(d.getTime() - weekday * 86400000);
+        }
+
+        function getAqiStyle(aqi) {
+            const n = parseInt(aqi, 10);
+            if (isNaN(n) || n < 0) {
+                return { color: '#94a3b8', label: 'Unavailable', bg: 'rgba(148, 163, 184, 0.15)' };
+            }
+            if (n <= 50) return { color: '#4ade80', label: 'Good', bg: 'rgba(74, 222, 128, 0.15)' };
+            if (n <= 100) return { color: '#facc15', label: 'Moderate', bg: 'rgba(250, 204, 21, 0.15)' };
+            if (n <= 150) return { color: '#fb923c', label: 'USG', bg: 'rgba(251, 146, 60, 0.15)' };
+            if (n <= 200) return { color: '#f87171', label: 'Unhealthy', bg: 'rgba(248, 113, 113, 0.15)' };
+            if (n <= 300) return { color: '#c084fc', label: 'Very Unhealthy', bg: 'rgba(192, 132, 252, 0.15)' };
+            return { color: '#f472b6', label: 'Hazardous', bg: 'rgba(244, 114, 182, 0.15)' };
+        }
+
+        function parseReportingAreaData(text, city, state) {
+            return text.split('\n').filter(line => line.trim()).reduce((records, line) => {
+                const fields = line.split('|');
+                if (fields[7] !== city || fields[8] !== state) return records;
+                records.push({
+                    validDate: fields[1],
+                    time: fields[2],
+                    timezone: fields[3],
+                    forecastDay: parseInt(fields[4], 10),
+                    recordType: fields[5],
+                    isPrimary: fields[6] === 'Y',
+                    parameter: fields[11],
+                    aqi: fields[12] ? parseInt(fields[12], 10) : null,
+                    category: fields[13] || '',
+                    actionDay: fields[14] === 'Yes',
+                    agency: fields[16] || ''
+                });
+                return records;
+            }, []);
+        }
+
+        function buildAirQualitySnapshot(records) {
+            const observations = records.filter(r => r.recordType === 'O' && r.forecastDay === 0 && r.aqi !== null);
+            const published = records.filter(r => r.recordType === 'Y' && r.forecastDay === -1 && r.aqi !== null);
+            const currentSource = observations.length ? observations : published;
+
+            let overallAqi = null;
+            let primaryPollutant = '';
+            let category = '';
+            const pollutants = {};
+
+            currentSource.forEach(record => {
+                pollutants[record.parameter] = record;
+                if (overallAqi === null || record.aqi > overallAqi) {
+                    overallAqi = record.aqi;
+                    primaryPollutant = record.parameter;
+                    category = record.category;
+                }
+            });
+
+            const primaryRecord = currentSource.find(r => r.isPrimary);
+            if (primaryRecord) {
+                primaryPollutant = primaryRecord.parameter;
+                category = primaryRecord.category;
+            }
+
+            const forecastDays = [...new Set(
+                records.filter(r => r.recordType === 'F' && r.aqi !== null).map(r => r.forecastDay)
+            )].sort((a, b) => a - b);
+
+            const forecasts = forecastDays.map(dayOffset => {
+                const dayRecords = records.filter(r => r.recordType === 'F' && r.forecastDay === dayOffset && r.aqi !== null);
+                let dayAqi = null;
+                let dayCategory = '';
+                let dayPollutant = '';
+                const dayPollutants = {};
+
+                dayRecords.forEach(record => {
+                    dayPollutants[record.parameter] = record;
+                    if (dayAqi === null || record.aqi > dayAqi) {
+                        dayAqi = record.aqi;
+                        dayPollutant = record.parameter;
+                        dayCategory = record.category;
+                    }
+                });
+
+                const primaryForecast = dayRecords.find(r => r.isPrimary);
+                if (primaryForecast) {
+                    dayPollutant = primaryForecast.parameter;
+                    dayCategory = primaryForecast.category;
+                }
+
+                const label = dayOffset === 0 ? 'Today' : (dayOffset === 1 ? 'Tomorrow' : `Day +${dayOffset}`);
+                return {
+                    label,
+                    aqi: dayAqi,
+                    category: dayCategory,
+                    pollutant: dayPollutant,
+                    pollutants: dayPollutants,
+                    actionDay: dayRecords.some(r => r.actionDay)
+                };
+            });
+
+            const latestObservation = observations[0] || published[0] || null;
+
+            return {
+                overallAqi,
+                category,
+                primaryPollutant,
+                pollutants,
+                forecasts,
+                observationTime: latestObservation ? [latestObservation.validDate, latestObservation.time, latestObservation.timezone].filter(Boolean).join(' ') : '',
+                agency: latestObservation?.agency || 'City of Wichita'
+            };
+        }
+
+        function formatQueryDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function toLocalDayKey(epochMs) {
+            return formatQueryDate(new Date(epochMs));
+        }
+
+        function getAligned14DayPeriods(today) {
+            const normalizedToday = new Date(today);
+            normalizedToday.setHours(0, 0, 0, 0);
+            const year = normalizedToday.getFullYear();
+            const epochSunday = getSundayOfWeek(new Date(year, 0, 1));
+
+            const periodStarts = [];
+            let currentStart = new Date(epochSunday);
+            while (currentStart <= normalizedToday) {
+                periodStarts.push(new Date(currentStart));
+                currentStart.setDate(currentStart.getDate() + 14);
+            }
+
+            return periodStarts.slice(-3).map(start => {
+                const end = new Date(start);
+                end.setDate(end.getDate() + 13);
+                return { start: new Date(start), end: end };
+            });
+        }
+
+        async function fetchAllArcGISFeatures(baseUrl) {
+            const pageSize = 2000;
+            const allFeatures = [];
+            let offset = 0;
+
+            while (true) {
+                const pageUrl = `${baseUrl}&resultRecordCount=${pageSize}&resultOffset=${offset}`;
+                const response = await fetch(pageUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const features = data?.features || [];
+                allFeatures.push(...features);
+
+                if (features.length === 0 || features.length < pageSize || !data.exceededTransferLimit) {
+                    break;
+                }
+                offset += pageSize;
+            }
+
+            return allFeatures;
+        }
+
+        // excludeRecentDays: hide the most recent N calendar days (city feeds
+        // often revise trailing days). Applied by date, not by series index.
+        function build14DaySeries(periods, dailyCounts, today, colors, excludeRecentDays = 0) {
+            const normalizedToday = new Date(today);
+            normalizedToday.setHours(0, 0, 0, 0);
+
+            const effectiveEnd = new Date(normalizedToday);
+            if (excludeRecentDays > 0) {
+                effectiveEnd.setDate(effectiveEnd.getDate() - excludeRecentDays);
+            }
+
+            return periods.map((period, idx) => {
+                const dataPoints = [];
+                const startDate = period.start;
+                const endDate = period.end > effectiveEnd ? effectiveEnd : period.end;
+
+                for (let i = 0; i < 14; i++) {
+                    const day = new Date(startDate);
+                    day.setDate(day.getDate() + i);
+                    if (day > effectiveEnd) break;
+                    dataPoints.push(dailyCounts.get(formatQueryDate(day)) || 0);
+                }
+
+                const startLabel = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const endLabel = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                return {
+                    label: `${startLabel}–${endLabel}`,
+                    data: dataPoints,
+                    borderColor: colors[idx],
+                    backgroundColor: colors[idx] + '22',
+                    tension: 0.3,
+                    borderWidth: 3,
+                    pointRadius: 2
+                };
+            });
+        }
+
+        // Widget: Clock
+        const wichitaClockWidget = {
+            id: 'wichita-clock',
+            title: 'Wichita Clock',
+            icon: '🕒',
+            category: 'time-weather',
+
+            render: function(state = {}) {
+                const sunrise = state.sunrise || '--:--';
+                const sunset = state.sunset || '--:--';
+
+                return `
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                        <div class="clock-time" id="clock-time">--:--:-- --</div>
+                        <div class="clock-date" id="clock-date">Loading...</div>
+                        
+                        <div class="sun-info" style="margin-top: 16px; font-size: 13.5px; color: var(--text-muted); line-height: 1.6;">
+                            Sunrise: <span id="sunrise">${sunrise}</span><br>
+                            Sunset:  <span id="sunset">${sunset}</span>
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement) {
+                const timeEl = containerElement.querySelector('#clock-time');
+                const dateEl = containerElement.querySelector('#clock-date');
+                const sunriseEl = containerElement.querySelector('#sunrise');
+                const sunsetEl = containerElement.querySelector('#sunset');
+
+                let lastDate = null;
+
+                async function fetchSunTimes() {
+                    try {
+                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.6872&longitude=-97.3301&daily=sunrise,sunset&timezone=America/Chicago');
+                        const data = await res.json();
+                        
+                        const today = new Date().toISOString().slice(0, 10);
+                        const index = data.daily.time.indexOf(today);
+
+                        if (index !== -1) {
+                            const sunriseTime = data.daily.sunrise[index].slice(11, 16);
+                            const sunsetTime = data.daily.sunset[index].slice(11, 16);
+
+                            let srHour = parseInt(sunriseTime.slice(0,2));
+                            const srMin = sunriseTime.slice(3);
+                            const srAmpm = srHour >= 12 ? 'PM' : 'AM';
+                            srHour = srHour % 12 || 12;
+
+                            let ssHour = parseInt(sunsetTime.slice(0,2));
+                            const ssMin = sunsetTime.slice(3);
+                            const ssAmpm = ssHour >= 12 ? 'PM' : 'AM';
+                            ssHour = ssHour % 12 || 12;
+
+                            sunriseEl.textContent = `${srHour}:${srMin} ${srAmpm}`;
+                            sunsetEl.textContent = `${ssHour}:${ssMin} ${ssAmpm}`;
+                        }
+                    } catch (e) {
+                        sunriseEl.textContent = '--:--';
+                        sunsetEl.textContent = '--:--';
+                    }
+                }
+
+                function updateClock() {
+                    const now = new Date();
+                    const chicagoTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
+
+                    let hours = chicagoTime.getHours();
+                    const minutes = chicagoTime.getMinutes().toString().padStart(2, '0');
+                    const seconds = chicagoTime.getSeconds().toString().padStart(2, '0');
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12 || 12;
+                    const hourStr = hours.toString().padStart(2, '0');
+
+                    timeEl.textContent = `${hourStr}:${minutes}:${seconds} ${ampm}`;
+
+                    dateEl.textContent = chicagoTime.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+
+                    const todayStr = chicagoTime.toISOString().slice(0, 10);
+                    if (lastDate !== todayStr) {
+                        fetchSunTimes();
+                        lastDate = todayStr;
+                    }
+                }
+
+                updateClock();
+                setInterval(updateClock, 1000);
+            }
+        };
+
+        // Widget: Weather
+        const wichitaWeatherWidget = {
+            id: 'wichita-weather',
+            title: 'Wichita Weather',
+            icon: '🌤️',
+            category: 'time-weather',
+
+            render: function(state = {}, activeTab = 'current') {
+                const isForecast = activeTab === 'forecast';
+
+                if (isForecast) {
+                    const forecastItems = (state.forecast || []).map(item => `
+                        <div class="forecast-item">
+                            <div class="forecast-time">${item.time}</div>
+                            <div class="forecast-temp">${Math.round(item.temp)}°</div>
+                            <div class="forecast-emoji">${item.emoji}</div>
+                            <div class="forecast-condition">${item.condition}</div>
+                        </div>
+                    `).join('');
+
+                    return `
+                        <div style="flex: 1; display: flex; flex-direction: column; height: 100%;">
+                            <div class="weather-tabs">
+                                <div class="weather-tab" data-tab="current">Current</div>
+                                <div class="weather-tab active" data-tab="forecast">4-hr Forecast</div>
+                            </div>
+                            <div class="forecast-container">
+                                ${forecastItems || '<div style="text-align:center; color:var(--text-muted); padding:40px 0;">Loading forecast...</div>'}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const temp = state.temp !== undefined ? Math.round(state.temp) : '--';
+                    const condition = state.condition || 'Loading...';
+                    const humidity = state.humidity !== undefined ? state.humidity : '--';
+                    const wind = state.wind !== undefined ? Math.round(state.wind) : '--';
+                    const emoji = state.emoji || '🌤️';
+
+                    return `
+                        <div style="flex: 1; display: flex; flex-direction: column; height: 100%;">
+                            <div class="weather-tabs">
+                                <div class="weather-tab active" data-tab="current">Current</div>
+                                <div class="weather-tab" data-tab="forecast">4-hr Forecast</div>
+                            </div>
+                            <div class="current-layout">
+                                <div class="weather-main">
+                                    <div style="text-align: right;">
+                                        <div class="weather-temp">${temp}°</div>
+                                        <div style="font-size: 13px; color: #9ca3af;">Fahrenheit</div>
+                                    </div>
+                                    <div class="weather-icon">${emoji}</div>
+                                </div>
+                                <div class="weather-condition">${condition}</div>
+                                
+                                <div class="weather-details">
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 13px; color: var(--text-muted);">Humidity</div>
+                                        <div style="font-size: 19px; font-weight: 500;">${humidity}%</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 13px; color: var(--text-muted);">Wind</div>
+                                        <div style="font-size: 19px; font-weight: 500;">${wind} mph</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                let activeTab = 'current';
+
+                function renderCurrentContent() {
+                    containerElement.innerHTML = wichitaWeatherWidget.render(state, activeTab);
+                    attachTabListeners();
+                    updateFooter(containerElement, state);
+                }
+
+                function attachTabListeners() {
+                    containerElement.querySelectorAll('.weather-tab').forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            activeTab = tab.dataset.tab;
+                            renderCurrentContent();
+                        });
+                    });
+                }
+
+                async function fetchWeather() {
+                    try {
+                        const res = await fetch(
+                            'https://api.open-meteo.com/v1/forecast?latitude=37.6872&longitude=-97.3301&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/Chicago'
+                        );
+                        const data = await res.json();
+                        const current = data.current;
+                        const hourly = data.hourly;
+
+                        const sunRes = await fetch(
+                            'https://api.open-meteo.com/v1/forecast?latitude=37.6872&longitude=-97.3301&daily=sunrise,sunset&timezone=America/Chicago'
+                        );
+                        const sunData = await sunRes.json();
+                        const today = new Date().toISOString().slice(0, 10);
+                        const sunIndex = sunData.daily.time.indexOf(today);
+
+                        let sunriseHour = 6;
+                        let sunsetHour = 20;
+                        if (sunIndex !== -1) {
+                            sunriseHour = parseInt(sunData.daily.sunrise[sunIndex].slice(11, 13));
+                            sunsetHour = parseInt(sunData.daily.sunset[sunIndex].slice(11, 13));
+                        }
+
+                        const conditionMap = {
+                            0: "Clear Sky", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast",
+                            45: "Fog", 48: "Fog", 51: "Light Drizzle", 53: "Drizzle", 55: "Dense Drizzle",
+                            61: "Light Rain", 63: "Rain", 65: "Heavy Rain",
+                            71: "Light Snow", 73: "Snow", 75: "Heavy Snow",
+                            80: "Rain Showers", 95: "Thunderstorm", 99: "Thunderstorm"
+                        };
+
+                        state.temp = current.temperature_2m;
+                        state.humidity = current.relative_humidity_2m;
+                        state.wind = current.wind_speed_10m;
+                        state.condition = conditionMap[current.weather_code] || "Cloudy";
+
+                        const currentHour = new Date().getHours();
+                        const isClear = current.weather_code <= 3;
+                        const isNight = (currentHour < sunriseHour) || (currentHour >= sunsetHour);
+
+                        if (isClear && isNight) {
+                            state.emoji = "✨";
+                        } else if (isClear) {
+                            state.emoji = "☀️";
+                        } else if (current.weather_code <= 48) {
+                            state.emoji = "🌫️";
+                        } else if (current.weather_code <= 65) {
+                            state.emoji = "🌧️";
+                        } else if (current.weather_code <= 75) {
+                            state.emoji = "❄️";
+                        } else {
+                            state.emoji = "⛈️";
+                        }
+
+                        state.lastUpdated = Date.now();
+
+                        state.forecast = [];
+                        const now = new Date();
+                        for (let i = 1; i <= 4; i++) {
+                            const forecastTime = new Date(now.getTime() + i * 60 * 60 * 1000);
+                            const hourIndex = Math.floor((forecastTime - new Date(hourly.time[0])) / (1000 * 60 * 60));
+
+                            if (hourIndex >= 0 && hourIndex < hourly.time.length) {
+                                const hourCode = hourly.weather_code[hourIndex];
+                                const hourTemp = hourly.temperature_2m[hourIndex];
+                                const forecastHour = forecastTime.getHours();
+
+                                let hourEmoji = "☀️";
+                                const isForecastClear = hourCode <= 3;
+                                const isForecastNight = (forecastHour < sunriseHour) || (forecastHour >= sunsetHour);
+
+                                if (isForecastClear && isForecastNight) {
+                                    hourEmoji = "✨";
+                                } else if (isForecastClear) {
+                                    hourEmoji = "☀️";
+                                } else if (hourCode <= 48) {
+                                    hourEmoji = "🌫️";
+                                } else if (hourCode <= 65) {
+                                    hourEmoji = "🌧️";
+                                } else if (hourCode <= 75) {
+                                    hourEmoji = "❄️";
+                                } else {
+                                    hourEmoji = "⛈️";
+                                }
+
+                                state.forecast.push({
+                                    time: forecastTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                                    temp: hourTemp,
+                                    condition: conditionMap[hourCode] || "Cloudy",
+                                    emoji: hourEmoji
+                                });
+                            }
+                        }
+
+                        saveFn(state);
+                        renderCurrentContent();
+                    } catch (e) {
+                        containerElement.innerHTML = `
+                            <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center;">
+                                Unable to load weather
+                            </div>
+                        `;
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                fetchWeather();
+                setInterval(fetchWeather, 30 * 60 * 1000);
+            }
+        };
+
+        // Widget: 4-Day Forecast
+        const wichitaFourDayForecastWidget = {
+            id: 'wichita-4day-forecast',
+            title: '4-Day Forecast',
+            icon: '📅',
+            category: 'time-weather',
+
+            conditionMap: {
+                0: "Clear Sky", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast",
+                45: "Fog", 48: "Fog", 51: "Light Drizzle", 53: "Drizzle", 55: "Dense Drizzle",
+                61: "Light Rain", 63: "Rain", 65: "Heavy Rain",
+                71: "Light Snow", 73: "Snow", 75: "Heavy Snow",
+                80: "Rain Showers", 95: "Thunderstorm", 99: "Thunderstorm"
+            },
+
+            getEmoji: function(code) {
+                if (code <= 3) return "☀️";
+                if (code <= 48) return "🌫️";
+                if (code <= 65) return "🌧️";
+                if (code <= 75) return "❄️";
+                return "⛈️";
+            },
+
+            parseForecastDate: function(dateStr) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            },
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Loading 4-day forecast...
+                        </div>
+                    `;
+                }
+
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+
+                const forecastItems = (state.forecast || []).map(item => `
+                    <div class="forecast-item">
+                        <div class="forecast-time">${item.label}</div>
+                        <div class="forecast-temp forecast-temp-range">${Math.round(item.high)}°<span class="forecast-temp-lo">/${Math.round(item.low)}°</span></div>
+                        <div class="forecast-emoji">${item.emoji}</div>
+                        <div class="forecast-condition">${item.condition}</div>
+                    </div>
+                `).join('');
+
+                return `
+                    <div style="flex: 1; display: flex; flex-direction: column; height: 100%;">
+                        <div style="font-size:11px; color:var(--text-muted); text-align:center; padding:4px 6px; border-bottom:1px solid var(--border);">
+                            Wichita · High / Low (°F)
+                        </div>
+                        <div class="forecast-container">
+                            ${forecastItems || '<div style="text-align:center; color:var(--text-muted); padding:40px 0;">No forecast available</div>'}
+                        </div>
+                        <div style="font-size:8px; color:var(--text-muted); padding:4px 2px; border-top:1px solid var(--border); text-align:center;">
+                            Open-Meteo
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                const widget = this;
+
+                function renderContent() {
+                    containerElement.innerHTML = widget.render(state);
+                    updateFooter(containerElement, state);
+                }
+
+                async function fetchFourDayForecast() {
+                    const hasCachedData = (state.forecast || []).length > 0;
+                    try {
+                        if (!hasCachedData) {
+                            state.isLoading = true;
+                            state.error = null;
+                            containerElement.innerHTML = widget.render(state);
+                        }
+
+                        const res = await fetch(
+                            'https://api.open-meteo.com/v1/forecast?latitude=37.6872&longitude=-97.3301&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=America/Chicago&temperature_unit=fahrenheit'
+                        );
+                        if (!res.ok) throw new Error('Forecast request failed');
+
+                        const data = await res.json();
+                        const daily = data.daily;
+                        if (!daily?.time?.length) throw new Error('No forecast data returned');
+
+                        state.forecast = daily.time.slice(0, 4).map((dateStr, index) => {
+                            const date = widget.parseForecastDate(dateStr);
+                            const code = daily.weather_code[index];
+                            return {
+                                label: index === 0
+                                    ? 'Today'
+                                    : date.toLocaleDateString('en-US', { weekday: 'short' }),
+                                high: daily.temperature_2m_max[index],
+                                low: daily.temperature_2m_min[index],
+                                condition: widget.conditionMap[code] || 'Cloudy',
+                                emoji: widget.getEmoji(code)
+                            };
+                        });
+
+                        state.isLoading = false;
+                        state.error = null;
+                        state.lastUpdated = Date.now();
+
+                        saveFn(state);
+                        renderContent();
+                    } catch (e) {
+                        state.error = 'Unable to load 4-day forecast';
+                        state.isLoading = false;
+                        renderContent();
+                    }
+                }
+
+                if ((state.forecast || []).length > 0 && !state.isLoading && !state.error) {
+                    renderContent();
+                }
+
+                fetchFourDayForecast();
+                setInterval(fetchFourDayForecast, 30 * 60 * 1000);
+            }
+        };
+
+        // Widget: Air Quality (AirNow)
+        const wichitaAirQualityWidget = {
+            id: 'wichita-air-quality',
+            title: 'Wichita Air Quality',
+            icon: '🌬️',
+            category: 'time-weather',
+
+            pollutantLabels: {
+                OZONE: 'Ozone',
+                'PM2.5': 'PM2.5',
+                PM10: 'PM10'
+            },
+
+            render: function(state = {}, activeTab = 'current') {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Loading air quality data...
+                        </div>
+                    `;
+                }
+
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+
+                const isForecast = activeTab === 'forecast';
+                const aqiStyle = getAqiStyle(state.overallAqi);
+                const aqiDisplay = state.overallAqi !== null && state.overallAqi !== undefined ? state.overallAqi : '--';
+                const category = state.category || aqiStyle.label;
+                const primary = this.pollutantLabels[state.primaryPollutant] || state.primaryPollutant || 'N/A';
+
+                const pollutantCards = ['OZONE', 'PM2.5', 'PM10'].map(key => {
+                    const record = state.pollutants?.[key];
+                    const value = record?.aqi ?? '--';
+                    const style = getAqiStyle(record?.aqi);
+                    const label = this.pollutantLabels[key] || key;
+                    return `
+                        <div class="aqi-pollutant-card" style="background:${style.bg}; border-color:${style.color};">
+                            <div class="aqi-pollutant-name">${label}</div>
+                            <div class="aqi-pollutant-value" style="color:${style.color};">${value}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                if (isForecast) {
+                    const forecastItems = (state.forecasts || []).map(item => {
+                        const style = getAqiStyle(item.aqi);
+                        const pollutant = this.pollutantLabels[item.pollutant] || item.pollutant || 'N/A';
+                        const actionBadge = item.actionDay ? '<span class="aqi-action-day">Action Day</span>' : '';
+                        return `
+                            <div class="forecast-item">
+                                <div class="forecast-time">${item.label}</div>
+                                <div class="forecast-temp" style="color:${style.color};">${item.aqi ?? '--'}</div>
+                                <div class="forecast-condition" style="color:${style.color};">${item.category || style.label}${actionBadge}</div>
+                                <div class="aqi-forecast-pollutant">${pollutant}</div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `
+                        <div style="flex: 1; display: flex; flex-direction: column; height: 100%;">
+                            <div class="weather-tabs">
+                                <div class="weather-tab" data-tab="current">Current</div>
+                                <div class="weather-tab active" data-tab="forecast">Forecast</div>
+                            </div>
+                            <div class="forecast-container">
+                                ${forecastItems || '<div style="text-align:center; color:var(--text-muted); padding:40px 12px; font-size:13px;">No forecast published for Wichita right now.</div>'}
+                            </div>
+                            <div class="aqi-source-note">Source: AirNow.gov</div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div style="flex: 1; display: flex; flex-direction: column; height: 100%;">
+                        <div class="weather-tabs">
+                            <div class="weather-tab active" data-tab="current">Current</div>
+                            <div class="weather-tab" data-tab="forecast">Forecast</div>
+                        </div>
+                        <div class="aqi-current-layout">
+                            <div class="aqi-main">
+                                <div class="aqi-badge" style="background:${aqiStyle.bg}; border-color:${aqiStyle.color};">
+                                    <div class="aqi-value" style="color:${aqiStyle.color};">${aqiDisplay}</div>
+                                    <div class="aqi-category" style="color:${aqiStyle.color};">${category}</div>
+                                </div>
+                                <div class="aqi-meta">
+                                    <div class="aqi-meta-label">Primary Pollutant</div>
+                                    <div class="aqi-meta-value">${primary}</div>
+                                    ${state.observationTime ? `<div class="aqi-meta-time">Observed ${state.observationTime}</div>` : ''}
+                                </div>
+                            </div>
+                            <div class="aqi-pollutant-grid">
+                                ${pollutantCards}
+                            </div>
+                            <div class="aqi-source-note">${state.agency || 'City of Wichita'} · AirNow.gov</div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                let activeTab = 'current';
+
+                function renderCurrentContent() {
+                    containerElement.innerHTML = wichitaAirQualityWidget.render(state, activeTab);
+                    attachTabListeners();
+                    updateFooter(containerElement, state);
+                }
+
+                function attachTabListeners() {
+                    containerElement.querySelectorAll('.weather-tab').forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            activeTab = tab.dataset.tab;
+                            renderCurrentContent();
+                        });
+                    });
+                }
+
+                async function fetchAirQuality() {
+                    const hasCachedData = state.overallAqi !== null && state.overallAqi !== undefined;
+                    try {
+                        if (!hasCachedData) {
+                            state.isLoading = true;
+                            state.error = null;
+                            containerElement.innerHTML = wichitaAirQualityWidget.render(state, activeTab);
+                        }
+
+                        const targetUrl = 'https://files.airnowtech.org/airnow/today/reportingarea.dat';
+                        const proxyResponse = await proxyFetch(targetUrl);
+                        const text = await proxyResponse.text();
+                        const records = parseReportingAreaData(text, 'Wichita', 'KS');
+
+                        if (!records.length) throw new Error('No Wichita air quality records found');
+
+                        const snapshot = buildAirQualitySnapshot(records);
+                        if (snapshot.overallAqi === null) throw new Error('No current AQI values available');
+
+                        Object.assign(state, snapshot, {
+                            isLoading: false,
+                            error: null,
+                            lastUpdated: Date.now()
+                        });
+
+                        saveFn(state);
+                        renderCurrentContent();
+                    } catch (e) {
+                        state.error = 'Unable to load air quality data';
+                        state.isLoading = false;
+                        containerElement.innerHTML = wichitaAirQualityWidget.render(state, activeTab);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                if (state.overallAqi !== undefined && state.overallAqi !== null && !state.isLoading && !state.error) {
+                    renderCurrentContent();
+                }
+
+                fetchAirQuality();
+                setInterval(fetchAirQuality, 30 * 60 * 1000);
+            }
+        };
+
+        // Widget: Violent Crime (red=most recent)
+        const wichitaViolentCrimeWidget = {
+            id: 'wichita-violent-crime',
+            title: 'Wichita Violent Crime',
+            icon: '🚨',
+            category: 'public-safety',
+            infoMessage: 'The three most recent data points are excluded from the chart because they are likely to be revised in the near future as the city updates its records.',
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Loading 3×14-day violent crime comparison...
+                        </div>
+                    `;
+                }
+
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                        <div class="chart-container" style="flex:1; position:relative; min-height:205px;">
+                            <canvas id="crimeChart" width="280" height="205"></canvas>
+                        </div>
+                        <div style="font-size:8px; color:var(--text-muted); padding:4px 2px; border-top:1px solid var(--border); text-align:center;">
+                            14-day periods • last 3 days excluded
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                let chartInstance = null;
+
+                function updateFooterLocal() {
+                    updateFooter(containerElement, state);
+                }
+
+                async function fetchCrimeData() {
+                    try {
+                        state.isLoading = true;
+                        containerElement.innerHTML = wichitaViolentCrimeWidget.render(state);
+
+                        const today = new Date();
+                        const periods = getAligned14DayPeriods(today);
+
+                        const queryStart = new Date(periods[0].start);
+                        const queryEnd = new Date(periods[periods.length - 1].end);
+                        queryEnd.setDate(queryEnd.getDate() + 1);
+
+                        const startStr = formatQueryDate(queryStart);
+                        const endStr = formatQueryDate(queryEnd);
+
+                        const violentCategories = ['MURDER', 'RAPE', 'SIM_ASSAULT', 'ROBBERY', 'AGG_ASSAULT'];
+                        const categoryFilter = violentCategories.map(cat => `CATEGORY='${cat}'`).join(' OR ');
+
+                        const queryBase = `https://gismaps.wichita.gov/ageweb/rest/services/OpenData/Crime/MapServer/0/query?where=STARTDATETIME >= TIMESTAMP '${startStr}' AND STARTDATETIME < TIMESTAMP '${endStr}' AND (${categoryFilter})&outFields=STARTDATETIME&returnGeometry=false&orderByFields=STARTDATETIME ASC&f=json`;
+
+                        const features = await fetchAllArcGISFeatures(queryBase);
+
+                        if (features.length === 0) throw new Error("No violent crime data found");
+
+                        const dailyCounts = new Map();
+                        features.forEach(f => {
+                            if (!f.attributes?.STARTDATETIME) return;
+                            const dayKey = toLocalDayKey(f.attributes.STARTDATETIME);
+                            dailyCounts.set(dayKey, (dailyCounts.get(dayKey) || 0) + 1);
+                        });
+
+                        state.series = build14DaySeries(
+                            periods,
+                            dailyCounts,
+                            today,
+                            ['#7f1d1d', '#b91c1c', '#ef4444'],
+                            3
+                        );
+
+                        state.labels = Array.from({ length: 14 }, (_, i) => `Day ${i + 1}`);
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        renderFullContent();
+                        updateFooterLocal();
+                    } catch (e) {
+                        console.error(e);
+                        state.error = "Unable to load violent crime data";
+                        state.isLoading = false;
+                        containerElement.innerHTML = wichitaViolentCrimeWidget.render(state);
+                        updateFooterLocal();
+                    }
+                }
+
+                function renderFullContent() {
+                    containerElement.innerHTML = wichitaViolentCrimeWidget.render(state);
+                    setTimeout(renderChart, 80);
+                }
+
+                function renderChart() {
+                    createLineChart(containerElement, 'crimeChart', state.labels, state.series || []);
+                }
+
+                fetchCrimeData();
+                setInterval(fetchCrimeData, 12 * 60 * 60 * 1000);
+            }
+        };
+
+        // Widget: Traffic Accidents
+        const wichitaTrafficAccidentsWidget = {
+            id: 'wichita-traffic-accidents',
+            title: 'Wichita Traffic Accidents',
+            icon: '🚗',
+            category: 'public-safety',
+            // Chart icon in header → detail page broken out by offense code
+            detailUrl: 'traffic-accidents-detail.html',
+            detailTitle: 'Open traffic accidents detail chart',
+            infoMessage: 'The three most recent data points are excluded from the chart because they are likely to be revised in the near future as the city updates its records. Use the chart icon in the header for a daily breakdown by offense code over the most recent 14-day period.',
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Loading 3×14-day traffic accident comparison...
+                        </div>
+                    `;
+                }
+
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                        <div class="chart-container" style="flex:1; position:relative; min-height:205px;">
+                            <canvas id="trafficAccidentsChart" width="280" height="205"></canvas>
+                        </div>
+                        <div style="font-size:8px; color:var(--text-muted); padding:4px 2px; border-top:1px solid var(--border); text-align:center;">
+                            14-day periods • last 3 days excluded
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                async function fetchAccidentData() {
+                    try {
+                        state.isLoading = true;
+                        containerElement.innerHTML = wichitaTrafficAccidentsWidget.render(state);
+
+                        const today = new Date();
+                        const periods = getAligned14DayPeriods(today);
+
+                        const queryStart = new Date(periods[0].start);
+                        const queryEnd = new Date(periods[periods.length - 1].end);
+                        queryEnd.setDate(queryEnd.getDate() + 1);
+
+                        const startStr = formatQueryDate(queryStart);
+                        const endStr = formatQueryDate(queryEnd);
+
+                        const startYear = queryStart.getFullYear();
+                        const endYear = periods[periods.length - 1].end.getFullYear();
+                        let features = [];
+
+                        for (let year = startYear; year <= endYear; year++) {
+                            const layerId = year - 2017;
+                            if (layerId < 0) continue;
+
+                            const whereClause = encodeURIComponent(
+                                `ACCIDENT_DATE >= TIMESTAMP '${startStr}' AND ACCIDENT_DATE < TIMESTAMP '${endStr}'`
+                            );
+                            const queryBase = `https://gismaps.wichita.gov/ageweb/rest/services/OpenData/TrafficAccidents/FeatureServer/${layerId}/query?where=${whereClause}&outFields=ACCIDENT_DATE&returnGeometry=false&orderByFields=ACCIDENT_DATE ASC&f=json`;
+                            const layerFeatures = await fetchAllArcGISFeatures(queryBase);
+                            features = features.concat(layerFeatures);
+                        }
+
+                        if (features.length === 0) throw new Error("No traffic accident data found for recent period");
+
+                        const dailyCounts = new Map();
+                        features.forEach(f => {
+                            if (!f.attributes?.ACCIDENT_DATE) return;
+                            const dayKey = toLocalDayKey(f.attributes.ACCIDENT_DATE);
+                            dailyCounts.set(dayKey, (dailyCounts.get(dayKey) || 0) + 1);
+                        });
+
+                        state.series = build14DaySeries(
+                            periods,
+                            dailyCounts,
+                            today,
+                            ['#92400e', '#d97706', '#f59e0b'],
+                            3
+                        );
+
+                        state.labels = Array.from({ length: 14 }, (_, i) => `Day ${i + 1}`);
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        renderFullContent();
+                        updateFooter(containerElement, state);
+                    } catch (e) {
+                        console.error(e);
+                        state.error = "Unable to load traffic accident data";
+                        state.isLoading = false;
+                        containerElement.innerHTML = wichitaTrafficAccidentsWidget.render(state);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                function renderFullContent() {
+                    containerElement.innerHTML = wichitaTrafficAccidentsWidget.render(state);
+                    setTimeout(renderChart, 80);
+                }
+
+                function renderChart() {
+                    createLineChart(containerElement, 'trafficAccidentsChart', state.labels, state.series || []);
+                }
+
+                fetchAccidentData();
+                setInterval(fetchAccidentData, 12 * 60 * 60 * 1000);
+            }
+        };
+
+        // Widget: Fire & EMS Pulse
+        const wichitaFireEmsWidget = {
+            id: 'wichita-fire-ems',
+            title: 'Fire & EMS',
+            icon: '🚒',
+            category: 'public-safety',
+            // Chart icon in header → full-page multi-line chart (top 7 types by day)
+            detailUrl: 'fire-ems-detail.html',
+            detailTitle: 'Open Fire & EMS detail chart',
+            infoMessage: 'Call counts from City of Wichita open Fire/EMS incident data. Uses the most recent 8 calendar days of responses (medical and fire), excluding today — i.e. the past full 7 completed days. Today is omitted because city records for the current day are incomplete and often revised. Aggregates only — not a live 911 feed and no addresses are shown. Use the chart icon in the header for a daily breakdown of the top call types.',
+
+            layerUrl: 'https://gismaps.wichita.gov/ageweb/rest/services/OpenData/Fire/MapServer/2/query',
+            // Fetch window is lookbackDays calendar days ending today; today is then excluded
+            // so aggregates cover (lookbackDays - 1) full completed days (past full 7 days).
+            lookbackDays: 8,
+            summaryDays: 7,
+            topTypeCount: 8,
+            // Hide noisy/non-incident labels from the "top types" list (still counted in totals)
+            skipTopTypes: {
+                '': true,
+                'cancelled': true,
+                'no incident found upon arrival / location error': true,
+                'dispatched & cancelled en route': true
+            },
+            // Shorter, friendlier labels for common CAD types
+            typeAliases: {
+                'breathing problems': 'Breathing',
+                'chest pain (non-trauma)': 'Chest pain',
+                'sick case': 'Illness',
+                'lift assist': 'Lift assist',
+                'fall': 'Fall',
+                'motor vehicle collision': 'Vehicle crash',
+                'convulsions / seizures': 'Seizures',
+                'unknown problem': 'Unknown',
+                'citizen assist / service call': 'Citizen assist',
+                'unconscious / fainting': 'Unconscious',
+                'traffic / transportation incident': 'Traffic incident',
+                'heart problems / a.i.c.d.': 'Heart problems',
+                'abdominal pain / problems': 'Abdominal pain',
+                'overdose / poisoning': 'Overdose',
+                'psychiatric / abnormal behavior': 'Psychiatric',
+                'traumatic injury': 'Trauma',
+                'structure fire': 'Structure fire',
+                'outside fire': 'Outside fire',
+                'alarm system activation': 'Alarm'
+            },
+
+            escapeHtml: function(str) {
+                return String(str ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            },
+
+            startOfLocalDay: function(d) {
+                const x = new Date(d);
+                x.setHours(0, 0, 0, 0);
+                return x;
+            },
+
+            friendlyType: function(type, maxLen = 28) {
+                const raw = String(type || 'Unknown').trim();
+                const alias = this.typeAliases[raw.toLowerCase()];
+                let t = alias || raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                // Title-case leftover raw CAD strings lightly
+                if (!alias && t === t.toUpperCase() && t.length > 3) {
+                    t = t.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+                }
+                if (t.length > maxLen) t = t.slice(0, maxLen - 1) + '…';
+                return t;
+            },
+
+            render: function(state = {}) {
+                if (state.isLoading && state.calls7d == null) {
+                    return `
+                        <div class="fire-ems-message">Loading call volume…</div>
+                    `;
+                }
+
+                if (state.error && state.calls7d == null) {
+                    return `
+                        <div class="fire-ems-message fire-ems-message-error">${this.escapeHtml(state.error)}</div>
+                    `;
+                }
+
+                const calls7d = state.calls7d ?? 0;
+                const emergPct = state.emergencyPct != null ? Math.round(state.emergencyPct) : null;
+                const types = state.topTypes || [];
+
+                const typeRows = types.map((t, idx) => {
+                    const share = calls7d > 0 ? Math.round((t.count / calls7d) * 100) : 0;
+                    return `
+                        <tr title="${this.escapeHtml(t.type)}">
+                            <td class="fire-ems-td-num">${idx + 1}</td>
+                            <td class="fire-ems-td-type">${this.escapeHtml(this.friendlyType(t.type))}</td>
+                            <td class="fire-ems-td-num">${t.count.toLocaleString()}</td>
+                            <td class="fire-ems-td-num">${share}%</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                const typesTable = types.length
+                    ? `
+                        <table class="fire-ems-table">
+                            <thead>
+                                <tr>
+                                    <th class="fire-ems-th-num" scope="col">#</th>
+                                    <th scope="col">Call type</th>
+                                    <th class="fire-ems-th-num" scope="col">Calls</th>
+                                    <th class="fire-ems-th-num" scope="col">Share</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${typeRows}
+                            </tbody>
+                        </table>
+                    `
+                    : '<div class="fire-ems-empty">No breakdown yet</div>';
+
+                return `
+                    <div class="fire-ems-root">
+                        <div class="fire-ems-content-header">Past Full 7 Days</div>
+                        <table class="fire-ems-table fire-ems-table-summary">
+                            <tbody>
+                                <tr>
+                                    <td class="fire-ems-summary-cell">
+                                        <div class="fire-ems-summary-value">${calls7d.toLocaleString()}</div>
+                                        <div class="fire-ems-summary-label">Total Calls</div>
+                                    </td>
+                                    <td class="fire-ems-summary-cell">
+                                        <div class="fire-ems-summary-value">${emergPct != null ? emergPct + '%' : '—'}</div>
+                                        <div class="fire-ems-summary-label">Percent Emergency Calls</div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="fire-ems-section fire-ems-section-grow">
+                            <div class="fire-ems-section-title">Top call types</div>
+                            <div class="fire-ems-table-wrap">
+                                ${typesTable}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                const self = this;
+
+                async function loadData() {
+                    try {
+                        if (state.calls7d == null) {
+                            state.isLoading = true;
+                            state.error = null;
+                            containerElement.innerHTML = self.render(state);
+                        }
+
+                        const today = self.startOfLocalDay(new Date());
+                        // Window: lookbackDays calendar days ending today, then drop today
+                        // → (lookbackDays - 1) full completed days (e.g. 8 lookback → past full 7).
+                        const rangeStart = new Date(today);
+                        rangeStart.setDate(rangeStart.getDate() - (self.lookbackDays - 1));
+                        const rangeEndExclusive = today; // exclude incomplete current day
+                        const summaryStart = rangeStart;
+
+                        // Fire layer rejects epoch comparisons in WHERE; use SQL date literal.
+                        // Attributes still return AlarmDate as epoch ms.
+                        const startDateSql = formatQueryDate(rangeStart); // YYYY-MM-DD
+                        const endDateSql = formatQueryDate(rangeEndExclusive);
+                        const where = `AlarmDate >= date'${startDateSql}' AND AlarmDate < date'${endDateSql}'`;
+                        const queryBase =
+                            `${self.layerUrl}?where=${encodeURIComponent(where)}` +
+                            `&outFields=AlarmDate,Incident_Type,Emer_NEmer` +
+                            `&returnGeometry=false&f=json`;
+
+                        const features = await fetchAllArcGISFeatures(queryBase);
+
+                        const typeCounts = new Map();
+                        let calls7d = 0;
+                        let emergency7d = 0;
+                        let classified7d = 0;
+
+                        features.forEach(f => {
+                            const a = f.attributes || {};
+                            const alarm = a.AlarmDate;
+                            if (alarm == null || alarm < summaryStart.getTime() || alarm >= rangeEndExclusive.getTime()) return;
+
+                            calls7d += 1;
+                            const emer = String(a.Emer_NEmer || '').trim();
+                            if (emer === 'Emergency' || emer === 'Non-Emergency') {
+                                classified7d += 1;
+                                if (emer === 'Emergency') emergency7d += 1;
+                            }
+                            const rawType = String(a.Incident_Type || '').trim();
+                            const skipKey = rawType.toLowerCase();
+                            if (!self.skipTopTypes[skipKey]) {
+                                typeCounts.set(rawType || 'Unknown', (typeCounts.get(rawType || 'Unknown') || 0) + 1);
+                            }
+                        });
+
+                        const topTypes = [...typeCounts.entries()]
+                            .map(([type, count]) => ({ type, count }))
+                            .sort((a, b) => b.count - a.count)
+                            .slice(0, self.topTypeCount);
+
+                        state.calls7d = calls7d;
+                        state.callsPerDay = calls7d ? Math.round(calls7d / self.summaryDays) : 0;
+                        state.emergencyPct = classified7d ? (emergency7d / classified7d) * 100 : null;
+                        state.topTypes = topTypes;
+                        state.featureCount = features.length;
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        containerElement.innerHTML = self.render(state);
+                        updateFooter(containerElement, state);
+                    } catch (e) {
+                        console.error(e);
+                        state.error = 'Unable to load Fire & EMS data';
+                        state.isLoading = false;
+                        containerElement.innerHTML = self.render(state);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                loadData();
+                setInterval(loadData, 12 * 60 * 60 * 1000);
+            }
+        };
+
+        // Widget: Gas Price
+        const gasPriceTrendWidget = {
+            id: 'gas-price-trend',
+            title: 'U.S. Gas Price Trend',
+            icon: '⛽',
+            category: 'prices',
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Fetching latest gasoline prices...
+                        </div>
+                    `;
+                }
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+                return `
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                        <div class="chart-container" style="flex:1; position:relative; min-height:205px;">
+                            <canvas id="gasChart" width="280" height="205"></canvas>
+                        </div>
+                        <div style="font-size:8px; color:var(--text-muted); padding:4px 2px; border-top:1px solid var(--border);">
+                            Last 12 Weeks Available - EIA.gov
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: async function(containerElement, state = {}, saveFn) {
+                async function fetchGasData() {
+                    try {
+                        state.isLoading = true;
+                        containerElement.innerHTML = gasPriceTrendWidget.render(state);
+
+                        const targetUrl = "https://api.eia.gov/v2/petroleum/pri/gnd/data/?frequency=weekly&data[0]=value&facets[product][]=EPMR&facets[duoarea][]=NUS&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=12";
+
+                        const proxyResponse = await proxyFetch(targetUrl);
+                        const data = await proxyResponse.json();
+                        const items = data?.response?.data || [];
+                        if (items.length === 0) throw new Error("No data returned");
+
+                        items.reverse();
+
+                        state.labels = [];
+                        state.prices = [];
+
+                        items.forEach(item => {
+                            const date = new Date(item.period);
+                            const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            let value = parseFloat(item.value) || 0;
+                            state.labels.push(label);
+                            state.prices.push(value);
+                        });
+
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        renderFullContent();
+                    } catch (e) {
+                        state.error = "Failed to load gasoline prices via proxy";
+                        state.isLoading = false;
+                        containerElement.innerHTML = gasPriceTrendWidget.render(state);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                function renderFullContent() {
+                    containerElement.innerHTML = gasPriceTrendWidget.render(state);
+                    setTimeout(renderChart, 50);
+                }
+
+                function renderChart() {
+                    createLineChart(containerElement, 'gasChart', state.labels, [{
+                        label: 'U.S. Regular Gasoline ($/gal)',
+                        data: state.prices,
+                        borderColor: '#22d3ee',
+                        backgroundColor: 'rgba(34, 211, 238, 0.15)',
+                        tension: 0.35,
+                        borderWidth: 3,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]);
+                }
+
+                await fetchGasData();
+                setInterval(fetchGasData, 12 * 60 * 60 * 1000);
+            }
+        };
+
+        // Widget: Egg Price
+        const eggPriceTrendWidget = {
+            id: 'egg-price-trend',
+            title: 'U.S. Egg Price Trend',
+            icon: '🥚',
+            category: 'prices',
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Fetching latest egg prices...
+                        </div>
+                    `;
+                }
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+                return `
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                        <div class="chart-container" style="flex:1; position:relative; min-height:205px;">
+                            <canvas id="eggChart" width="280" height="205"></canvas>
+                        </div>
+                        <div style="font-size:8px; color:var(--text-muted); padding:4px 2px; border-top:1px solid var(--border);">
+                            Last 12 Months Available - FRED
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: async function(containerElement, state = {}, saveFn) {
+                async function fetchEggData() {
+                    try {
+                        state.isLoading = true;
+                        containerElement.innerHTML = eggPriceTrendWidget.render(state);
+
+                        const targetUrl = "https://api.stlouisfed.org/fred/series/observations?series_id=APU0000708111&file_type=json&limit=12&sort_order=desc";
+
+                        const proxyResponse = await proxyFetch(targetUrl);
+                        const data = await proxyResponse.json();
+                        const items = data?.observations || [];
+                        if (items.length === 0) throw new Error("No data returned");
+
+                        items.reverse();
+
+                        state.labels = [];
+                        state.prices = [];
+
+                        items.forEach(item => {
+                            const date = new Date(item.date);
+                            const label = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                            let value = item.value;
+                            if (value === "." || value === "" || value == null) {
+                                value = null;
+                            } else {
+                                value = parseFloat(value);
+                            }
+                            state.labels.push(label);
+                            state.prices.push(value);
+                        });
+
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        renderFullContent();
+                    } catch (e) {
+                        state.error = "Failed to load egg prices via proxy";
+                        state.isLoading = false;
+                        containerElement.innerHTML = eggPriceTrendWidget.render(state);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                function renderFullContent() {
+                    containerElement.innerHTML = eggPriceTrendWidget.render(state);
+                    setTimeout(renderChart, 50);
+                }
+
+                function renderChart() {
+                    createLineChart(containerElement, 'eggChart', state.labels, [{
+                        label: 'U.S. Eggs Grade A Large ($/dozen)',
+                        data: state.prices,
+                        borderColor: '#22d3ee',
+                        backgroundColor: 'rgba(34, 211, 238, 0.15)',
+                        tension: 0.35,
+                        borderWidth: 3,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]);
+                }
+
+                await fetchEggData();
+                setInterval(fetchEggData, 12 * 60 * 60 * 1000);
+            }
+        };
+
+        // Widget: Potato Price
+        const potatoesPriceTrendWidget = {
+            id: 'potatoes-price-trend',
+            title: 'Midwest Potatoes Price',
+            icon: '🥔',
+            category: 'prices',
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px;">
+                            Fetching Midwest potato prices...
+                        </div>
+                    `;
+                }
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+                return `
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%;">
+                        <div class="chart-container" style="flex:1; position:relative; min-height:205px;">
+                            <canvas id="potatoesChart" width="280" height="205"></canvas>
+                        </div>
+                        <div style="font-size:8px; color:var(--text-muted); padding:4px 2px; border-top:1px solid var(--border);">
+                            Last 12 Months Available - FRED
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: async function(containerElement, state = {}, saveFn) {
+                async function fetchPotatoesData() {
+                    try {
+                        state.isLoading = true;
+                        containerElement.innerHTML = potatoesPriceTrendWidget.render(state);
+
+                        const targetUrl = "https://api.stlouisfed.org/fred/series/observations?series_id=APU0200712112&file_type=json&limit=12&sort_order=desc";
+
+                        const proxyResponse = await proxyFetch(targetUrl);
+                        const data = await proxyResponse.json();
+                        const items = data?.observations || [];
+                        if (items.length === 0) throw new Error("No data returned");
+
+                        items.reverse();
+
+                        state.labels = [];
+                        state.prices = [];
+
+                        items.forEach(item => {
+                            const date = new Date(item.date);
+                            const label = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                            let value = item.value;
+                            if (value === "." || value === "" || value == null) {
+                                value = null;
+                            } else {
+                                value = parseFloat(value);
+                            }
+                            state.labels.push(label);
+                            state.prices.push(value);
+                        });
+
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        renderFullContent();
+                    } catch (e) {
+                        state.error = "Failed to load Midwest potato prices via proxy";
+                        state.isLoading = false;
+                        containerElement.innerHTML = potatoesPriceTrendWidget.render(state);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                function renderFullContent() {
+                    containerElement.innerHTML = potatoesPriceTrendWidget.render(state);
+                    setTimeout(renderChart, 50);
+                }
+
+                function renderChart() {
+                    createLineChart(containerElement, 'potatoesChart', state.labels, [{
+                        label: 'Midwest White Potatoes ($/lb)',
+                        data: state.prices,
+                        borderColor: '#22d3ee',
+                        backgroundColor: 'rgba(34, 211, 238, 0.15)',
+                        tension: 0.35,
+                        borderWidth: 3,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]);
+                }
+
+                await fetchPotatoesData();
+                setInterval(fetchPotatoesData, 12 * 60 * 60 * 1000);
+            }
+        };
+
+        // Widget: News
+        const wichitaNewsWidget = {
+            id: 'wichita-news',
+            title: 'Wichita News',
+            icon: '📰',
+            category: 'news-status',
+
+            render: function(state = {}) {
+                if (state.isLoading) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px; padding:20px;">
+                            Loading latest local headlines...
+                        </div>
+                    `;
+                }
+
+                if (state.error) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}<br><small style="font-size:11px; opacity:0.7;">(KSN via proxy)</small>
+                        </div>
+                    `;
+                }
+
+                const itemsHTML = (state.headlines || []).map(item => `
+                    <a href="${item.link}" target="_blank" style="text-decoration:none; color:inherit;">
+                        <div style="padding:7px 8px; border-bottom:1px solid #334155; transition:all 0.15s; cursor:pointer;" 
+                             onmouseover="this.style.backgroundColor='#334155'" 
+                             onmouseout="this.style.backgroundColor='transparent'">
+                            <div style="font-size:12px; line-height:1.2; font-weight:500; color:#e2e8f0;">${item.title}</div>
+                            ${item.teaser ? `<div style="font-size:10px; color:#9ca3af; margin-top:2px; line-height:1.1;">${item.teaser}</div>` : ''}
+                        </div>
+                    </a>
+                `).join('');
+
+                return `
+                    <div style="flex:1; display:flex; flex-direction:column; height:100%; overflow:hidden;">
+                        <div style="padding:2px 4px; font-size:12px; color:var(--text-muted); border-bottom:1px solid var(--border);">
+                            KSN Local News • Top 3 Headlines
+                        </div>
+                        <div style="flex:1; overflow-y:auto; padding:2px 0;">
+                            ${itemsHTML || '<div style="padding:40px 20px; text-align:center; color:var(--text-muted);">No headlines available</div>'}
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                async function fetchNews() {
+                    try {
+                        state.isLoading = true;
+                        containerElement.innerHTML = wichitaNewsWidget.render(state);
+
+                        const targetUrl = "https://www.ksn.com/news/local/feed/";
+
+                        const proxyResponse = await proxyFetch(targetUrl);
+                        const text = await proxyResponse.text();
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(text, "text/xml");
+
+                        const items = xmlDoc.querySelectorAll("item");
+                        const headlines = [];
+
+                        for (let i = 0; i < Math.min(3, items.length); i++) {
+                            const item = items[i];
+                            const title = item.querySelector("title")?.textContent?.trim() || "Untitled";
+                            const link = item.querySelector("link")?.textContent?.trim() || "#";
+                            let teaser = item.querySelector("description")?.textContent?.trim() || "";
+
+                            teaser = teaser.replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
+                                           .replace(/<[^>]+>/g, ' ').trim();
+
+                            if (teaser.length > 80) {
+                                teaser = teaser.substring(0, 117) + '...';
+                            }
+
+                            headlines.push({ title, link, teaser });
+                        }
+
+                        if (headlines.length === 0) throw new Error("No headlines found");
+
+                        state.headlines = headlines;
+                        state.lastUpdated = Date.now();
+                        state.isLoading = false;
+                        state.error = null;
+
+                        saveFn(state);
+                        containerElement.innerHTML = wichitaNewsWidget.render(state);
+                        updateFooter(containerElement, state);
+
+                    } catch (e) {
+                        state.error = "Unable to load KSN headlines";
+                        state.isLoading = false;
+                        containerElement.innerHTML = wichitaNewsWidget.render(state);
+                        updateFooter(containerElement, state);
+                    }
+                }
+
+                fetchNews();
+                setInterval(fetchNews, 30 * 60 * 1000);
+            }
+        };
+
+        // Widget: Platform Status (company-reported)
+        const platformStatusWidget = {
+            id: 'platform-status',
+            title: 'Platform Status',
+            icon: '📡',
+            category: 'news-status',
+            infoMessage: 'Shows company-reported status from official sources: xAI status (Grok), X Developer Platform live monitoring API (developer.x.com/api/status), and Meta Business Status (Facebook & Instagram platform services). Meta tracks business/platform products rather than the consumer apps alone.',
+
+            statusRank: {
+                operational: 0,
+                degraded: 1,
+                major: 2,
+                unknown: 3
+            },
+
+            statusMeta: {
+                operational: { label: 'Up', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.12)', dot: '#4ade80' },
+                degraded: { label: 'Issues', color: '#facc15', bg: 'rgba(250, 204, 21, 0.12)', dot: '#facc15' },
+                major: { label: 'Down', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)', dot: '#f87171' },
+                unknown: { label: 'Unknown', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', dot: '#94a3b8' }
+            },
+
+            worseStatus: function(a, b) {
+                const rank = this.statusRank;
+                return (rank[a] ?? 3) >= (rank[b] ?? 3) ? a : b;
+            },
+
+            mapMetaServiceStatus: function(raw) {
+                const s = String(raw || '').toLowerCase();
+                if (!s || s.includes('no known') || s.includes('operational') || s.includes('available')) {
+                    return 'operational';
+                }
+                if (s.includes('major') || s.includes('outage') || s.includes('down') || s.includes('unavailable')) {
+                    return 'major';
+                }
+                if (s.includes('some') || s.includes('minor') || s.includes('partial') || s.includes('degraded') || s.includes('recover') || s.includes('disruption')) {
+                    return 'degraded';
+                }
+                return 'degraded';
+            },
+
+            aggregateMetaOrgs: function(orgs, orgIds) {
+                const selected = orgs.filter(o => orgIds.includes(o.id));
+                if (!selected.length) {
+                    return { level: 'unknown', detail: 'No Meta product data', issues: [] };
+                }
+                let level = 'operational';
+                const issues = [];
+                selected.forEach(org => {
+                    (org.services || []).forEach(svc => {
+                        const svcLevel = this.mapMetaServiceStatus(svc.status);
+                        level = this.worseStatus(level, svcLevel);
+                        if (svcLevel !== 'operational') {
+                            issues.push(`${svc.name}: ${svc.status}`);
+                        }
+                    });
+                });
+                const detail = level === 'operational'
+                    ? 'No known issues (Meta)'
+                    : (issues[0] || 'Disruption reported (Meta)');
+                return { level, detail, issues };
+            },
+
+            parseXaiHtml: function(html) {
+                const names = ['Grok (Web)', 'Grok in X', 'Grok (iOS)', 'Grok (Android)'];
+                const text = html
+                    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                    .replace(/<[^>]+>/g, '\n')
+                    .replace(/\s+/g, ' ');
+                const found = [];
+                names.forEach(name => {
+                    const re = new RegExp(name.replace(/[()]/g, '\\$&') + '\\s+(available|unavailable|degraded|disruption|partial|operational)', 'i');
+                    const m = text.match(re);
+                    if (m) found.push({ name, status: m[1].toLowerCase() });
+                });
+                const noIncidents = /no incidents declared/i.test(text);
+                return { found, noIncidents, text };
+            },
+
+            parseXaiFeed: function(xmlText) {
+                const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+                const open = [];
+                doc.querySelectorAll('item').forEach(item => {
+                    const title = item.querySelector('title')?.textContent || '';
+                    const desc = item.querySelector('description')?.textContent || '';
+                    const cats = [...item.querySelectorAll('category')].map(c => (c.textContent || '').toLowerCase());
+                    const resolved = cats.includes('resolved') || /status:\s*resolved/i.test(desc);
+                    if (resolved) return;
+                    open.push({ title, cats });
+                });
+                return open;
+            },
+
+            evaluateGrok: function(htmlText, feedText) {
+                let level = 'operational';
+                let detail = 'No incidents declared';
+                const issues = [];
+
+                if (htmlText) {
+                    const parsed = this.parseXaiHtml(htmlText);
+                    if (parsed.found.length) {
+                        parsed.found.forEach(svc => {
+                            if (svc.status === 'available' || svc.status === 'operational') return;
+                            if (svc.status === 'unavailable') {
+                                level = this.worseStatus(level, 'major');
+                            } else {
+                                level = this.worseStatus(level, 'degraded');
+                            }
+                            issues.push(`${svc.name}: ${svc.status}`);
+                        });
+                        if (level === 'operational') {
+                            detail = 'Grok services available';
+                        }
+                    } else if (parsed.noIncidents) {
+                        detail = 'No incidents declared';
+                    }
+                }
+
+                if (feedText) {
+                    const open = this.parseXaiFeed(feedText);
+                    const grokOpen = open.filter(i => /grok/i.test(i.title));
+                    const anyOpen = open;
+                    if (grokOpen.length) {
+                        level = this.worseStatus(level, 'degraded');
+                        detail = grokOpen[0].title.replace(/^\[[^\]]+\]\s*/, '').slice(0, 72);
+                        issues.push(...grokOpen.map(i => i.title));
+                    } else if (!htmlText && anyOpen.length) {
+                        // Open non-Grok API incidents do not fail Grok itself
+                        detail = 'No open Grok incidents';
+                    } else if (!htmlText && !anyOpen.length) {
+                        detail = 'No open incidents';
+                    }
+                }
+
+                if (!htmlText && !feedText) {
+                    return { level: 'unknown', detail: 'Unable to reach xAI status', source: 'status.x.ai' };
+                }
+
+                return {
+                    level,
+                    detail: issues[0] ? issues[0].slice(0, 72) : detail,
+                    source: 'status.x.ai'
+                };
+            },
+
+            // X Developer Platform status is served as JSON at developer.x.com/api/status
+            // (docs.x.com/status and developer.x.com/status are client-rendered shells).
+            mapXOverallStatus: function(raw) {
+                const s = String(raw || '').toLowerCase();
+                if (s === 'operational' || s === 'ok' || s === 'up') return 'operational';
+                if (s === 'outage' || s === 'major' || s === 'down' || s === 'unavailable') return 'major';
+                if (s === 'degraded' || s === 'partial' || s === 'issues') return 'degraded';
+                if (s === 'no_data' || s === 'unknown' || !s) return 'unknown';
+                return 'degraded';
+            },
+
+            evaluateXJson: function(data) {
+                if (!data || typeof data !== 'object') return null;
+                const overall = data.overall;
+                if (overall == null && !data.endpoints && !data.atla && !data.pdxa) return null;
+
+                let level = this.mapXOverallStatus(overall);
+                // Aggregate regional overalls if top-level overall missing
+                if (overall == null) {
+                    level = 'operational';
+                    ['atla', 'pdxa'].forEach(region => {
+                        if (data[region]?.overall) {
+                            level = this.worseStatus(level, this.mapXOverallStatus(data[region].overall));
+                        }
+                    });
+                }
+
+                // Count endpoint health for a useful detail line.
+                // Prefer top-level endpoints[] (one per route); else merge regions.
+                const counts = { operational: 0, degraded: 0, outage: 0, no_data: 0, other: 0 };
+                const issueSamples = [];
+                const collect = (list) => {
+                    (list || []).forEach(ep => {
+                        const st = String(ep.status || 'other').toLowerCase();
+                        if (counts[st] != null) counts[st] += 1;
+                        else counts.other += 1;
+                        if (st === 'outage' || st === 'degraded') {
+                            if (issueSamples.length < 3 && ep.route) {
+                                issueSamples.push(`${ep.route}: ${st}`);
+                            }
+                        }
+                    });
+                };
+                if (Array.isArray(data.endpoints) && data.endpoints.length) {
+                    collect(data.endpoints);
+                } else {
+                    ['atla', 'pdxa'].forEach(region => collect(data[region]?.endpoints));
+                }
+
+                let detail;
+                if (level === 'operational') {
+                    const partial = counts.degraded + counts.outage;
+                    detail = partial > 0
+                        ? `Operational (${partial} endpoint issue${partial === 1 ? '' : 's'})`
+                        : 'All systems operational';
+                } else if (level === 'major') {
+                    detail = issueSamples[0] || 'Service outage reported';
+                } else if (level === 'degraded') {
+                    detail = issueSamples[0] || 'Degraded performance reported';
+                } else {
+                    detail = 'Status reported as unknown';
+                }
+
+                return {
+                    level,
+                    detail: String(detail).slice(0, 72),
+                    source: 'developer.x.com/api/status',
+                    counts
+                };
+            },
+
+            evaluateXHtmlLegacy: function(pageText) {
+                // Legacy docs.x.com/status MDX markup (pre client-rendered redesign)
+                if (!pageText) return null;
+                const text = pageText;
+                const allOk = /all systems are operational/i.test(text)
+                    || /we are not actively mitigating any known incidents/i.test(text);
+                const ongoingBlocks = [];
+                const stepRe = /<Step[^>]*title="([^"]+)"[^>]*>\s*([\s\S]*?)<\/Step>/gi;
+                let m;
+                while ((m = stepRe.exec(text)) !== null) {
+                    const title = m[1];
+                    const body = m[2];
+                    if (/incident is ongoing/i.test(body)) {
+                        ongoingBlocks.push(title);
+                    }
+                }
+                if (!ongoingBlocks.length && /incident is ongoing/i.test(text)) {
+                    const plain = text.replace(/<[^>]+>/g, ' ');
+                    const idx = plain.search(/incident is ongoing/i);
+                    if (idx > 0) {
+                        ongoingBlocks.push(plain.slice(Math.max(0, idx - 80), idx).trim().slice(-60));
+                    }
+                }
+
+                const siteWideOpen = ongoingBlocks.some(t => /site-wide/i.test(t));
+                if (siteWideOpen) {
+                    return {
+                        level: 'major',
+                        detail: ongoingBlocks.find(t => /site-wide/i.test(t)) || 'Site-wide outage',
+                        source: 'docs.x.com/status'
+                    };
+                }
+                if (allOk) {
+                    return {
+                        level: 'operational',
+                        detail: ongoingBlocks.length
+                            ? `Operational (${ongoingBlocks.length} minor ongoing)`
+                            : 'All systems operational',
+                        source: 'docs.x.com/status'
+                    };
+                }
+                if (ongoingBlocks.length) {
+                    return {
+                        level: 'degraded',
+                        detail: ongoingBlocks[0].slice(0, 72),
+                        source: 'docs.x.com/status'
+                    };
+                }
+                // Thin Next.js shell without content → not parseable
+                if (/__next|static\/chunks|X Developer Platform/i.test(text) && !/operational|incident/i.test(text)) {
+                    return null;
+                }
+                return null;
+            },
+
+            evaluateX: function(jsonText, htmlText) {
+                // Prefer live monitoring JSON used by the official status UI
+                if (jsonText) {
+                    try {
+                        const data = typeof jsonText === 'string' ? JSON.parse(jsonText) : jsonText;
+                        const fromJson = this.evaluateXJson(data);
+                        if (fromJson) return fromJson;
+                    } catch (e) { /* fall through */ }
+                }
+
+                const fromHtml = this.evaluateXHtmlLegacy(htmlText);
+                if (fromHtml) return fromHtml;
+
+                if (!jsonText && !htmlText) {
+                    return { level: 'unknown', detail: 'Unable to reach X status', source: 'developer.x.com/api/status' };
+                }
+                return {
+                    level: 'unknown',
+                    detail: 'Could not parse X status',
+                    source: 'developer.x.com/api/status'
+                };
+            },
+
+            fetchTextDirectOrProxy: async function(url) {
+                try {
+                    const res = await fetch(url, { cache: 'no-cache' });
+                    if (res.ok) return await res.text();
+                } catch (e) { /* try proxy */ }
+                try {
+                    const res = await proxyFetch(url);
+                    return await res.text();
+                } catch (e) {
+                    return null;
+                }
+            },
+
+            render: function(state = {}) {
+                if (state.isLoading && !(state.services || []).length) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; font-size:13px; padding:20px;">
+                            Checking platform status...
+                        </div>
+                    `;
+                }
+
+                if (state.error && !(state.services || []).length) {
+                    return `
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#f87171; text-align:center; font-size:13px; padding:20px;">
+                            ${state.error}
+                        </div>
+                    `;
+                }
+
+                const rows = (state.services || []).map(svc => {
+                    const meta = this.statusMeta[svc.level] || this.statusMeta.unknown;
+                    return `
+                        <a class="status-row" href="${svc.href}" target="_blank" rel="noopener noreferrer" title="${(svc.detail || '').replace(/"/g, '&quot;')}">
+                            <div class="status-row-left">
+                                <span class="status-icon">${svc.icon}</span>
+                                <div class="status-names">
+                                    <div class="status-name">${svc.name}</div>
+                                    <div class="status-detail">${svc.detail || ''}</div>
+                                </div>
+                            </div>
+                            <div class="status-badge" style="color:${meta.color}; background:${meta.bg};">
+                                <span class="status-dot" style="background:${meta.dot};"></span>
+                                ${meta.label}
+                            </div>
+                        </a>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="status-widget">
+                        <div class="status-header">Company-reported · official status pages</div>
+                        <div class="status-list">
+                            ${rows || '<div style="padding:24px; text-align:center; color:var(--text-muted); font-size:13px;">No status data</div>'}
+                        </div>
+                        <div class="status-footer-note">xAI · X Docs · Meta Status</div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                const widget = this;
+
+                function renderContent() {
+                    containerElement.innerHTML = widget.render(state);
+                    updateFooter(containerElement, state);
+                }
+
+                async function fetchAllStatus() {
+                    const hasCache = (state.services || []).length > 0;
+                    try {
+                        if (!hasCache) {
+                            state.isLoading = true;
+                            state.error = null;
+                            renderContent();
+                        }
+
+                        const [metaJsonText, xaiHtml, xaiFeed, xStatusJson, xStatusHtml] = await Promise.all([
+                            widget.fetchTextDirectOrProxy('https://www.metastatus.com/data/orgs.json'),
+                            widget.fetchTextDirectOrProxy('https://status.x.ai/'),
+                            widget.fetchTextDirectOrProxy('https://status.x.ai/feed.xml'),
+                            // Live endpoint behind the official status UI (JSON)
+                            widget.fetchTextDirectOrProxy('https://developer.x.com/api/status'),
+                            // HTML shell / legacy docs page (fallback only)
+                            widget.fetchTextDirectOrProxy('https://docs.x.com/status')
+                        ]);
+
+                        let metaOrgs = [];
+                        if (metaJsonText) {
+                            try {
+                                metaOrgs = JSON.parse(metaJsonText);
+                            } catch (e) {
+                                metaOrgs = [];
+                            }
+                        }
+
+                        const grok = widget.evaluateGrok(
+                            xaiHtml && !/attention required|cf-error|just a moment/i.test(xaiHtml) ? xaiHtml : null,
+                            xaiFeed
+                        );
+                        const x = widget.evaluateX(xStatusJson, xStatusHtml);
+                        const facebook = metaOrgs.length
+                            ? widget.aggregateMetaOrgs(metaOrgs, ['facebook-login', 'graph-api', 'ads-manager', 'fbs'])
+                            : { level: 'unknown', detail: 'Unable to reach Meta status' };
+                        const instagram = metaOrgs.length
+                            ? widget.aggregateMetaOrgs(metaOrgs, ['ig-boost', 'ig-messenger', 'fb-ig-shops'])
+                            : { level: 'unknown', detail: 'Unable to reach Meta status' };
+
+                        state.services = [
+                            {
+                                id: 'grok',
+                                name: 'Grok',
+                                icon: '⚡',
+                                level: grok.level,
+                                detail: grok.detail,
+                                href: 'https://status.x.ai/'
+                            },
+                            {
+                                id: 'x',
+                                name: 'X',
+                                icon: '𝕏',
+                                level: x.level,
+                                detail: x.detail,
+                                href: 'https://developer.x.com/status'
+                            },
+                            {
+                                id: 'facebook',
+                                name: 'Facebook',
+                                icon: '📘',
+                                level: facebook.level,
+                                detail: facebook.detail,
+                                href: 'https://www.metastatus.com/'
+                            },
+                            {
+                                id: 'instagram',
+                                name: 'Instagram',
+                                icon: '📸',
+                                level: instagram.level,
+                                detail: instagram.detail,
+                                href: 'https://www.metastatus.com/'
+                            }
+                        ];
+
+                        state.isLoading = false;
+                        state.error = null;
+                        state.lastUpdated = Date.now();
+                        saveFn(state);
+                        renderContent();
+                    } catch (e) {
+                        state.isLoading = false;
+                        if (!(state.services || []).length) {
+                            state.error = 'Unable to load platform status';
+                        }
+                        renderContent();
+                    }
+                }
+
+                if ((state.services || []).length) {
+                    renderContent();
+                }
+
+                fetchAllStatus();
+                setInterval(fetchAllStatus, 5 * 60 * 1000);
+            }
+        };
+
+        // Widget: Happy
+        const happyWidget = {
+            id: 'happy-widget',
+            title: 'Happy',
+            icon: '😊',
+            category: 'personal',
+
+            slogans: [
+                "Wichitasome!",
+                "In the Air Capital!",
+                "Positive Vibes 316",
+                "Kansas Sunshine!",
+                "The Keeper Stands Watch",
+                "Wichita: where dreams take flight ✈️"
+            ],
+
+            render: function(state = {}) {
+                const currentSlogan = state.currentSlogan || this.slogans[0];
+                const currentFace = state.currentFace || "😊";
+
+                return `
+                    <div class="happy-container">
+                        <div class="happy-face" id="happy-face" onclick="this.style.transform='scale(1.3) rotate(15deg)'; setTimeout(() => this.style.transform='', 300);">
+                            ${currentFace}
+                        </div>
+                        <div class="happy-slogan" id="happy-slogan">${currentSlogan}</div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+                function getRandomItem(array) {
+                    return array[Math.floor(Math.random() * array.length)];
+                }
+
+                function refreshHappy() {
+                    state.currentSlogan = getRandomItem(happyWidget.slogans);
+                    state.currentFace = getRandomItem(["😊", "🥰", "😄", "🌟", "☀️", "🚀", "❤️"]);
+                    state.lastUpdated = Date.now();
+
+                    containerElement.innerHTML = happyWidget.render(state);
+                    saveFn(state);
+                    updateFooter(containerElement, state);
+                }
+
+                containerElement.innerHTML = happyWidget.render(state);
+                updateFooter(containerElement, state);
+
+                setInterval(refreshHappy, 5 * 60 * 1000);
+
+                containerElement.addEventListener('click', (e) => {
+                    if (e.target.id === 'happy-face') return;
+                    refreshHappy();
+                });
+            }
+        };
+
+        // Widget: Quick Links
+        const quickLinksWidget = {
+            id: 'quick-links',
+            title: 'Quick Links',
+            icon: '🔗',
+            category: 'personal',
+
+            defaultState: () => ({
+                links: [
+                    { text: 'Google', url: 'https://google.com' },
+                    { text: 'YouTube', url: 'https://youtube.com' },
+                    { text: 'Amazon', url: 'https://amazon.com' },
+                    { text: 'Dillons', url: 'https://dillons.com' },
+                    { text: 'Library', url: 'https://wichitalibrary.org' }
+                ]
+            }),
+
+            render: function(state = {}) {
+                const linksHTML = (state.links || []).map((link) => {
+                    return `
+                        <a href="${link.url || '#'}" target="_blank" class="quick-link">
+                            <span class="quick-link-icon">↗</span>
+                            <span>${link.text || 'Untitled Link'}</span>
+                        </a>
+                    `;
+                }).join('');
+
+                return `
+                    <div style="flex:1;padding:8px 4px;display:flex;flex-direction:column;height:100%;">
+                        <div style="flex:1;overflow:auto;">
+                            ${linksHTML || '<div style="text-align:center;color:var(--text-muted);padding:40px 0;font-size:13px;">No links added yet.<br>Click pencil to edit.</div>'}
+                        </div>
+                    </div>
+                `;
+            },
+
+            init: function(containerElement, state = {}, saveFn) {
+            }
+        };
+
+        // Dashboard state
+        let slots = [];
+        let currentSlotCount = 8;
+        let widgetStates = {};
+        let draggedIndex = null;
+
+        const allWidgets = {
+            'wichita-clock': wichitaClockWidget,
+            'wichita-weather': wichitaWeatherWidget,
+            'wichita-4day-forecast': wichitaFourDayForecastWidget,
+            'wichita-air-quality': wichitaAirQualityWidget,
+            'wichita-violent-crime': wichitaViolentCrimeWidget,
+            'wichita-traffic-accidents': wichitaTrafficAccidentsWidget,
+            'wichita-fire-ems': wichitaFireEmsWidget,
+            'gas-price-trend': gasPriceTrendWidget,
+            'egg-price-trend': eggPriceTrendWidget,
+            'potatoes-price-trend': potatoesPriceTrendWidget,
+            'wichita-news': wichitaNewsWidget,
+            'platform-status': platformStatusWidget,
+            'happy-widget': happyWidget,
+            'quick-links': quickLinksWidget
+        };
+
+        // Ordered palette folders. New widgets: set widget.category to a folder id.
+        const WIDGET_CATEGORIES = [
+            { id: 'time-weather', title: 'Time & Weather', icon: '🌤️' },
+            { id: 'public-safety', title: 'Public Safety', icon: '🚨' },
+            { id: 'prices', title: 'Prices & Economy', icon: '📈' },
+            { id: 'news-status', title: 'News & Status', icon: '📰' },
+            { id: 'personal', title: 'Personal', icon: '✨' }
+        ];
+
+        // Session-only: which palette folders are expanded (first open by default)
+        const paletteFolderOpen = {};
+        WIDGET_CATEGORIES.forEach((cat, i) => { paletteFolderOpen[cat.id] = i === 0; });
+        paletteFolderOpen['other'] = false;
+
+        function saveToStorage() {
+            try {
+                localStorage.setItem('wichitaDashboard', JSON.stringify({
+                    slots: slots,
+                    slotCount: currentSlotCount,
+                    widgetStates: widgetStates
+                }));
+            } catch (e) {
+                console.warn("localStorage not available");
+            }
+        }
+
+        function loadFromStorage() {
+            try {
+                const saved = localStorage.getItem('wichitaDashboard');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    slots = data.slots || [];
+                    currentSlotCount = data.slotCount || 8;
+                    widgetStates = data.widgetStates || {};
+                    return true;
+                }
+            } catch (e) {
+                console.warn("localStorage read failed");
+            }
+            return false;
+        }
+
+        function renderEmptySlot(slotEl) {
+            slotEl.innerHTML = `
+                <div class="empty-text">
+                    <div class="empty-icon">⊞</div>
+                    <div>EMPTY SLOT</div>
+                    <div class="empty-hint">Click menu to add a widget</div>
+                </div>
+            `;
+        }
+
+        function bindSlotEvents(slotEl, index) {
+            slotEl.dataset.index = index;
+            slotEl.ondragover = (e) => e.preventDefault();
+            slotEl.ondrop = (e) => handleDrop(e, index);
+        }
+
+        function bindWidgetEvents(widgetEl, slotIndex, widgetDef) {
+            widgetEl.dataset.index = slotIndex;
+            widgetEl.dataset.widgetId = widgetDef.id;
+            widgetEl.draggable = true;
+            widgetEl.ondragstart = (e) => {
+                draggedIndex = slotIndex;
+                e.dataTransfer.effectAllowed = "move";
+            };
+
+            const contentEl = widgetEl.querySelector('.widget-content');
+            const footerEl = widgetEl.querySelector('.widget-footer');
+            if (contentEl) contentEl.id = `content-${slotIndex}`;
+            if (footerEl) footerEl.id = `footer-${slotIndex}`;
+
+            const closeBtn = widgetEl.querySelector('.close-btn');
+            if (closeBtn) {
+                closeBtn.onclick = (e) => {
+                    removeWidget(slotIndex);
+                    e.stopImmediatePropagation();
+                };
+            }
+
+            const detailLink = widgetEl.querySelector('.widget-detail-button');
+            if (detailLink) {
+                detailLink.onclick = (e) => {
+                    e.stopImmediatePropagation();
+                };
+            }
+
+            // Prefer explicit edit class so detail/info buttons never steal this handler
+            const editBtn = widgetEl.querySelector('.widget-edit-button')
+                || (widgetDef.id === 'quick-links'
+                    ? widgetEl.querySelector('.widget-header-button:not(.widget-info-button):not(.widget-detail-button)')
+                    : null);
+            if (widgetDef.id === 'quick-links' && editBtn) {
+                editBtn.onclick = (e) => {
+                    editQuickLinks(slotIndex);
+                    e.stopImmediatePropagation();
+                };
+            }
+
+            const infoBtn = widgetEl.querySelector('.widget-info-button');
+            const infoPopup = widgetEl.querySelector('.widget-info-popup');
+            const infoCloseBtn = widgetEl.querySelector('.widget-info-close');
+            if (infoBtn && infoPopup) {
+                infoBtn.onclick = (e) => {
+                    infoPopup.classList.add('open');
+                    e.stopImmediatePropagation();
+                };
+            }
+            if (infoCloseBtn && infoPopup) {
+                infoCloseBtn.onclick = (e) => {
+                    infoPopup.classList.remove('open');
+                    e.stopImmediatePropagation();
+                };
+            }
+        }
+
+        function mountWidget(slotEl, slotIndex, widgetDef) {
+            const isQuickLinks = widgetDef.id === 'quick-links';
+            const hasInfo = Boolean(widgetDef.infoMessage);
+            const detailUrl = widgetDef.detailUrl || '';
+            const detailTitle = widgetDef.detailTitle || 'Open detail chart';
+            const footerText = widgetDef.id === 'wichita-clock' ? 'City of Wichita Time' : 'Last Updated: --:--';
+            const initialState = widgetStates[widgetDef.id] || (widgetDef.defaultState ? widgetDef.defaultState() : {});
+            const widgetEl = document.createElement("div");
+            widgetEl.className = "widget";
+            widgetEl.innerHTML = `
+                <div class="widget-header">
+                    <div class="widget-header-left">
+                        <span class="widget-icon">${widgetDef.icon}</span>
+                        ${widgetDef.title}
+                    </div>
+                    <div class="widget-header-actions">
+                        ${detailUrl ? `
+                            <a class="widget-header-button widget-detail-button" href="${detailUrl}" title="${detailTitle}" aria-label="${detailTitle}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M3 3v18h18"/>
+                                    <path d="M7 14l4-4 4 3 5-6"/>
+                                </svg>
+                            </a>
+                        ` : ''}
+                        ${hasInfo ? `
+                            <button class="widget-header-button widget-info-button" type="button" title="Info" aria-label="Show info">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 16v-4"/>
+                                    <path d="M12 8h.01"/>
+                                </svg>
+                            </button>
+                        ` : ''}
+                        ${isQuickLinks ? `<button class="widget-header-button widget-edit-button" type="button" title="Edit links">✏️</button>` : ''}
+                        <button class="close-btn" type="button" title="Remove widget">×</button>
+                    </div>
+                </div>
+                <div class="widget-content" id="content-${slotIndex}">
+                    ${widgetDef.render ? widgetDef.render(initialState) : '<div style="flex:1"></div>'}
+                </div>
+                <div class="widget-footer" id="footer-${slotIndex}">${footerText}</div>
+                ${hasInfo ? `
+                    <div class="widget-info-popup" role="dialog" aria-label="Widget info">
+                        <div class="widget-info-card">
+                            <button class="widget-info-close close-btn" type="button" title="Close info" aria-label="Close info">×</button>
+                            <p class="widget-info-text">${widgetDef.infoMessage}</p>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+
+            bindWidgetEvents(widgetEl, slotIndex, widgetDef);
+            slotEl.innerHTML = '';
+            slotEl.appendChild(widgetEl);
+
+            const contentEl = widgetEl.querySelector('.widget-content');
+            if (widgetDef.init) {
+                widgetDef.init(contentEl, initialState, (newState) => {
+                    widgetStates[widgetDef.id] = newState;
+                    saveToStorage();
+                });
+            }
+        }
+
+        function ensureSlotCount(grid) {
+            while (grid.children.length < currentSlotCount) {
+                const slotEl = document.createElement("div");
+                slotEl.className = "slot";
+                grid.appendChild(slotEl);
+            }
+            while (grid.children.length > currentSlotCount) {
+                grid.removeChild(grid.lastChild);
+            }
+        }
+
+        function renderDashboard() {
+            const grid = document.getElementById("dashboard-grid");
+            ensureSlotCount(grid);
+            let clearedStale = false;
+
+            for (let i = 0; i < currentSlotCount; i++) {
+                const slotEl = grid.children[i];
+                bindSlotEvents(slotEl, i);
+
+                let expectedId = slots[i]?.widget?.id || null;
+                // Unknown / removed widget ids leave a blank slot if we skip mount and skip empty UI
+                if (expectedId && !allWidgets[expectedId]) {
+                    if (slots[i]) slots[i].widget = null;
+                    expectedId = null;
+                    clearedStale = true;
+                }
+
+                const widgetEl = slotEl.querySelector('.widget');
+                const currentId = widgetEl?.dataset.widgetId || null;
+
+                if (expectedId === currentId) {
+                    if (expectedId && widgetEl) {
+                        bindWidgetEvents(widgetEl, i, allWidgets[expectedId]);
+                    } else if (!expectedId && !slotEl.querySelector('.empty-text')) {
+                        renderEmptySlot(slotEl);
+                    }
+                    continue;
+                }
+
+                if (!expectedId) {
+                    renderEmptySlot(slotEl);
+                    continue;
+                }
+
+                mountWidget(slotEl, i, allWidgets[expectedId]);
+            }
+
+            if (clearedStale) saveToStorage();
+        }
+
+        function handleDrop(e, targetIndex) {
+            e.preventDefault();
+            const sourceIndex = draggedIndex;
+            if (sourceIndex === null || sourceIndex === targetIndex) return;
+
+            const temp = slots[sourceIndex];
+            slots[sourceIndex] = slots[targetIndex];
+            slots[targetIndex] = temp;
+            saveToStorage();
+
+            const grid = document.getElementById("dashboard-grid");
+            const sourceSlot = grid.children[sourceIndex];
+            const targetSlot = grid.children[targetIndex];
+            const sourceNodes = Array.from(sourceSlot.childNodes);
+            const targetNodes = Array.from(targetSlot.childNodes);
+
+            sourceSlot.innerHTML = '';
+            targetSlot.innerHTML = '';
+            targetNodes.forEach(node => sourceSlot.appendChild(node));
+            sourceNodes.forEach(node => targetSlot.appendChild(node));
+
+            bindSlotEvents(sourceSlot, sourceIndex);
+            bindSlotEvents(targetSlot, targetIndex);
+
+            const sourceWidget = sourceSlot.querySelector('.widget');
+            const targetWidget = targetSlot.querySelector('.widget');
+            if (sourceWidget) {
+                const def = allWidgets[sourceWidget.dataset.widgetId];
+                if (def) bindWidgetEvents(sourceWidget, sourceIndex, def);
+            }
+            if (targetWidget) {
+                const def = allWidgets[targetWidget.dataset.widgetId];
+                if (def) bindWidgetEvents(targetWidget, targetIndex, def);
+            }
+
+            draggedIndex = null;
+        }
+
+        function removeWidget(index) {
+            if (slots[index]) slots[index].widget = null;
+            saveToStorage();
+            renderDashboard();
+        }
+
+        function toggleModal() {
+            const modal = document.getElementById("modal-backdrop");
+            modal.style.display = (modal.style.display === "flex") ? "none" : "flex";
+            if (modal.style.display === "flex") renderWidgetPalette();
+        }
+
+        function addWidgetFromPalette(widgetId) {
+            const emptyIndex = slots.findIndex(s => !s || !s.widget);
+            if (emptyIndex !== -1) {
+                slots[emptyIndex] = { id: emptyIndex, widget: { id: widgetId } };
+                saveToStorage();
+                renderDashboard();
+                toggleModal();
+            } else {
+                alert("No empty slots left. Increase the number of slots.");
+            }
+        }
+
+        function createPaletteCard(widget) {
+            const card = document.createElement("div");
+            card.className = "palette-card";
+            card.innerHTML = `
+                <div class="palette-icon">${widget.icon}</div>
+                <div class="palette-title">${widget.title}</div>
+            `;
+            card.onclick = () => addWidgetFromPalette(widget.id);
+            return card;
+        }
+
+        function renderWidgetPalette() {
+            const palette = document.getElementById("widget-palette");
+            palette.innerHTML = "";
+
+            const byCategory = {};
+            Object.values(allWidgets).forEach(widget => {
+                const catId = widget.category || 'other';
+                if (!byCategory[catId]) byCategory[catId] = [];
+                byCategory[catId].push(widget);
+            });
+
+            const categories = WIDGET_CATEGORIES.slice();
+            if (byCategory['other'] && byCategory['other'].length) {
+                categories.push({ id: 'other', title: 'Other', icon: '📦' });
+            }
+
+            categories.forEach(cat => {
+                const widgets = byCategory[cat.id];
+                if (!widgets || !widgets.length) return;
+
+                const isOpen = !!paletteFolderOpen[cat.id];
+                const folder = document.createElement("div");
+                folder.className = "palette-folder" + (isOpen ? " open" : "");
+                folder.dataset.category = cat.id;
+
+                const header = document.createElement("button");
+                header.type = "button";
+                header.className = "palette-folder-header";
+                header.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                header.innerHTML = `
+                    <span class="palette-folder-chevron" aria-hidden="true">▶</span>
+                    <span class="palette-folder-icon" aria-hidden="true">${cat.icon}</span>
+                    <span class="palette-folder-name">${cat.title}</span>
+                    <span class="palette-folder-count">${widgets.length}</span>
+                `;
+                header.onclick = () => {
+                    paletteFolderOpen[cat.id] = !paletteFolderOpen[cat.id];
+                    folder.classList.toggle("open", paletteFolderOpen[cat.id]);
+                    header.setAttribute("aria-expanded", paletteFolderOpen[cat.id] ? "true" : "false");
+                };
+
+                const body = document.createElement("div");
+                body.className = "palette-folder-body";
+                const grid = document.createElement("div");
+                grid.className = "widget-palette-grid";
+                widgets.forEach(widget => grid.appendChild(createPaletteCard(widget)));
+                body.appendChild(grid);
+
+                folder.appendChild(header);
+                folder.appendChild(body);
+                palette.appendChild(folder);
+            });
+        }
+
+        function updateSlotCount(newCount) {
+            currentSlotCount = parseInt(newCount);
+            document.getElementById("slot-count-display").textContent = currentSlotCount;
+
+            while (slots.length < currentSlotCount) slots.push({ id: slots.length, widget: null });
+            slots.length = currentSlotCount;
+
+            saveToStorage();
+            renderDashboard();
+        }
+
+        // Quick links modal
+        let currentQuickLinksSlot = null;
+
+        function editQuickLinks(slotIndex) {
+            currentQuickLinksSlot = slotIndex;
+            const widgetId = slots[slotIndex].widget.id;
+            let state = widgetStates[widgetId] || quickLinksWidget.defaultState();
+
+            const form = document.getElementById('quicklinks-form');
+            form.innerHTML = '';
+
+            state.links.forEach((link, i) => {
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <div class="form-label">LINK ${i+1}</div>
+                    <input type="text" id="ql-text-${i}" value="${link.text || ''}" 
+                           class="modal-input" placeholder="Display text">
+                    <input type="url" id="ql-url-${i}" value="${link.url || ''}" 
+                           class="modal-input" style="margin-top:8px;" placeholder="https://example.com">
+                `;
+                form.appendChild(div);
+            });
+
+            const modal = document.getElementById('quicklinks-modal');
+            modal.classList.add('flex');
+        }
+
+        function closeQuickLinksModal() {
+            const modal = document.getElementById('quicklinks-modal');
+            modal.classList.remove('flex');
+            currentQuickLinksSlot = null;
+        }
+
+        function saveQuickLinks() {
+            if (currentQuickLinksSlot === null) return;
+
+            const widgetId = slots[currentQuickLinksSlot].widget.id;
+            let state = widgetStates[widgetId] || quickLinksWidget.defaultState();
+
+            state.links = [];
+            for (let i = 0; i < 5; i++) {
+                const text = (document.getElementById(`ql-text-${i}`) || {}).value.trim();
+                const url = (document.getElementById(`ql-url-${i}`) || {}).value.trim();
+                state.links.push({ text, url });
+            }
+
+            widgetStates[widgetId] = state;
+            saveToStorage();
+
+            const contentEl = document.getElementById(`content-${currentQuickLinksSlot}`);
+            if (contentEl) {
+                contentEl.innerHTML = quickLinksWidget.render(state);
+            }
+
+            closeQuickLinksModal();
+        }
+
+        const DEFAULT_WIDGET_IDS = [
+            'wichita-clock',
+            'wichita-weather',
+            'wichita-traffic-accidents',
+            'wichita-violent-crime',
+            'gas-price-trend',
+            'egg-price-trend',
+            'wichita-air-quality',
+            'wichita-news'
+        ];
+
+        function applyDefaultDashboard() {
+            currentSlotCount = DEFAULT_WIDGET_IDS.length;
+            slots = DEFAULT_WIDGET_IDS.map((widgetId, i) => ({
+                id: i,
+                widget: { id: widgetId }
+            }));
+        }
+
+        // Init
+        function initDashboard() {
+            if (window.dashboardInitialized) return;
+            window.dashboardInitialized = true;
+
+            const loaded = loadFromStorage();
+            const hasWidgets = slots.some(slot => slot?.widget?.id);
+
+            if (!loaded || slots.length === 0 || currentSlotCount < 2 || !hasWidgets) {
+                applyDefaultDashboard();
+            }
+
+            document.getElementById("slot-slider").value = currentSlotCount;
+            document.getElementById("slot-count-display").textContent = currentSlotCount;
+
+            renderDashboard();
+        }
+
+        window.onload = initDashboard;
+    </script>
+</body>
+</html>

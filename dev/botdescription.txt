@@ -1,0 +1,752 @@
+================================================================================
+WICHITA DASHBOARD — AGENT BRIEFING (DEVELOPMENT)
+================================================================================
+
+File:   dev/botdescription.txt    ← working briefing (edit this during sandbox work)
+Pair:   botdescription.txt        ← production briefing at repo root (PROMOTE only)
+
+Agents: read THIS file first. It may be ahead of production.
+
+BRIEFING WORKFLOW (hard rule — same as app/CSS pairs):
+  - All initial documentation / agent-instruction changes go ONLY in
+    dev/botdescription.txt. Do not edit root botdescription.txt while iterating.
+  - Root botdescription.txt changes only on explicit PROMOTE, by copying this
+    file to the repo root (retarget header to PRODUCTION framing) with other
+    DEV → PROD pairs.
+  - Until the next promote, production briefing may lag this file. That is
+    correct. Never "sync both briefings" outside a promote.
+
+Local:  the repository root
+Remote: https://github.com/davidylin/twotree-wichita.git  (branch: main)
+
+
+================================================================================
+1. PROJECT IDENTITY
+================================================================================
+
+Name:        Wichita Dashboard
+Tagline:     Kansas Vibe Code  (header subtitle, with version)
+Description: A customizable web dashboard for Wichita, Kansas.
+Owner site:  Two Tree Services — https://twotreeservices.com/
+Live URL:    https://twotreeservices.com/wichita/
+Sandbox URL: https://twotreeservices.com/wichita/dev/
+GitHub:      davidylin/twotree-wichita  (main)
+Version:     v1.0.9 (production)  ·  v1.0.9-dev (sandbox)
+Stack:       Static HTML + external CSS + vanilla JS. No build step, no npm.
+CDN:         Chart.js 4.4.1 · Google Fonts Inter (400/500/600)
+Proxy:       https://ttpr.twotreeservices.com/proxy  (CORS-blocked APIs only)
+Coords:      Wichita lat 37.6872, lon -97.3301, timezone America/Chicago
+
+
+================================================================================
+2. REPO LAYOUT (FOLDER ENVIRONMENTS)
+================================================================================
+
+Sandbox lives in the dev/ folder. Same filenames as production — no "dev" prefix.
+
+  PRODUCTION (repo root)           DEVELOPMENT (dev/ folder)
+  ---------------------------      ---------------------------
+  index.html                       dev/index.html
+  style.css                        dev/style.css
+  botdescription.txt               dev/botdescription.txt
+  fire-ems-detail.html             dev/fire-ems-detail.html
+  traffic-accidents-detail.html    dev/traffic-accidents-detail.html
+
+What each file is:
+  index.html                       Monolithic dashboard app (markup + JS)
+  style.css                        Shared theme + widget + detail-page styles
+  botdescription.txt               Agent briefing (this file under dev/)
+  fire-ems-detail.html             Fire & EMS multi-line detail chart page
+  traffic-accidents-detail.html    Traffic accidents by offense-code detail
+
+Live host after push:
+  Production:  https://twotreeservices.com/wichita/          → root index + style
+  Sandbox:     https://twotreeservices.com/wichita/dev/      → dev/index + dev/style
+
+Never invent layout outside this table without an explicit restructure request.
+
+================================================================================
+3. ENVIRONMENTS & WORKFLOW (HARD RULES)
+================================================================================
+
+Two environments, two steps. Do not invent other workflows.
+
+----------------------------------------
+3.1 STEP A — DEVELOPMENT (default)
+----------------------------------------
+
+  Edit only files under dev/:
+    dev/index.html · dev/style.css · dev/botdescription.txt
+    (+ detail pages under dev/ when needed)
+
+  Briefing / docs: write only in dev/botdescription.txt.
+  Do not touch root botdescription.txt in STEP A.
+
+  Then: commit → git push origin main
+
+  User reviews sandbox:
+    https://twotreeservices.com/wichita/dev/
+    (and /dev/botdescription.txt on the host when docs change)
+
+  Effect: host/GitHub sandbox updates. Live dashboard and production briefing
+  do NOT change.
+
+----------------------------------------
+3.2 STEP B — PROMOTE (explicit request only)
+----------------------------------------
+
+  Trigger phrases (must be explicit):
+    "promote", "promote dev to prod", "ship production",
+    "merge to index", "push production"
+
+  Copy each file from dev/ → matching name at repo root, strip sandbox markers,
+  bump production version (Section 13), then push PROD paths.
+
+  Pairs (same filename; folder changes only):
+    dev/index.html                    → index.html
+    dev/style.css                     → style.css
+    dev/botdescription.txt            → botdescription.txt
+    dev/fire-ems-detail.html          → fire-ems-detail.html
+    dev/traffic-accidents-detail.html → traffic-accidents-detail.html
+
+  Briefing promote: copy dev/botdescription.txt → botdescription.txt as a whole,
+  then retarget only the production header (File/Pair/Agents framing). Do not
+  hand-maintain root botdescription.txt separately between promotes.
+
+  On PROD copies:
+    - Title without "(dev)"
+    - CSS → style.css?v=X.Y.Z  (root index uses full host URL)
+    - Version markers without -dev
+    - detailUrl / back links use unprefixed names at root
+
+  Live after promote:
+    https://twotreeservices.com/wichita/   → index.html + style.css
+    root botdescription.txt reflects the promoted briefing
+
+----------------------------------------
+3.3 Agent rules (short form)
+----------------------------------------
+
+  - New work (app, CSS, docs/briefing) → dev/ only, then always push for review
+  - Do not edit root PROD files while iterating — including botdescription.txt
+  - Root botdescription.txt is promote-only (copied from dev/botdescription.txt)
+  - "push it" / "update version" / "fix this" → DEV push, not production
+  - Live still old after DEV push → expected (sandbox is /dev/ until promote)
+  - Never unsolicited production reverts; report and wait
+  - Never git add . ; stage named paths only
+  - Never MCP push_files / PLACEHOLDER content — git only, real disk bytes
+
+
+================================================================================
+4. WHAT THE APP DOES
+================================================================================
+
+Dark-themed, drag-and-drop personal dashboard for Wichita data and utilities.
+
+Layout:
+  - Grid of 300×300px widget slots (user chooses 2–24)
+  - Layout + per-widget state persist in localStorage (key: wichitaDashboard)
+  - First visit / bad storage → default 8-widget layout
+
+Header:
+  - Keeper of the Plains silhouette SVG
+  - Title "Wichita Dashboard"
+  - Subtitle "Kansas Vibe Code - vX.Y.Z" (or vX.Y.Z-dev in sandbox)
+  - "App Manager LinkedIn" → https://linkedin.com/in/lindavidy
+  - Hamburger → Customize modal
+
+Core UX:
+  - Drag-and-drop reorder widgets between slots
+  - × on widget header removes widget (slot becomes empty)
+  - Customize: slot-count slider + widget palette in category folders
+  - Empty slots show "EMPTY SLOT" hint
+  - Some widgets: ⓘ info popup; Fire & EMS: chart icon → detail page
+
+
+================================================================================
+5. CODE STRUCTURE (dev/index.html / index.html)
+================================================================================
+
+Monolithic HTML apps with one large <script>. Order of concerns:
+
+  A. Shared helpers
+       updateFooter, proxyFetch, createLineChart, getSundayOfWeek, getAqiStyle,
+       parseReportingAreaData, buildAirQualitySnapshot, formatQueryDate,
+       toLocalDayKey, getAligned14DayPeriods, fetchAllArcGISFeatures,
+       build14DaySeries
+
+  B. Widget definitions  (// Widget: Name)
+       const xxxWidget = { id, title, icon, category, render, init, ... }
+
+  C. Dashboard state
+       slots[], currentSlotCount, widgetStates{}, draggedIndex
+
+  D. allWidgets registry  (id → widget object)
+
+  E. Persistence
+       saveToStorage(), loadFromStorage()
+
+  F. DOM / rendering
+       renderEmptySlot, bindSlotEvents, bindWidgetEvents, mountWidget,
+       ensureSlotCount, renderDashboard, handleDrop, removeWidget
+
+  G. Modals & palette
+       toggleModal, renderWidgetPalette, updateSlotCount,
+       editQuickLinks, closeQuickLinksModal, saveQuickLinks,
+       WIDGET_CATEGORIES, paletteFolderOpen, addWidgetFromPalette,
+       createPaletteCard
+
+  H. Boot
+       DEFAULT_WIDGET_IDS, applyDefaultDashboard(), initDashboard()
+
+Styles live only in the paired CSS file (not inline except minimal render()
+layout). Develop in dev/style.css; promote merges into style.css.
+
+
+================================================================================
+6. WIDGET CONTRACT
+================================================================================
+
+  const exampleWidget = {
+      id: 'kebab-case-id',       // allWidgets key + localStorage
+      title: 'Display Name',     // header text
+      icon: '📅',                // header + palette
+      category: 'time-weather',  // WIDGET_CATEGORIES folder id
+
+      // Optional:
+      infoMessage: '...',        // ⓘ button + in-widget popup
+      detailUrl: 'page.html',    // chart icon link (DEV uses dev* page names)
+      detailTitle: '...',        // title / aria-label for detail link
+      defaultState: () => ({}),  // initial state if none stored
+
+      render(state = {}, activeTab) {
+          // HTML for .widget-content only
+          // Handle state.isLoading and state.error for async widgets
+      },
+
+      init(containerElement, state = {}, saveFn) {
+          // containerElement = .widget-content
+          // Typical: fetch → mutate state + lastUpdated → saveFn(state)
+          //          → re-render → setInterval → updateFooter(...)
+      }
+  };
+
+Register in allWidgets. Optionally add id to DEFAULT_WIDGET_IDS.
+
+Header/footer are built by mountWidget(), not render().
+  Clock footer: "City of Wichita Time"
+  All others:   "Last Updated: --:--" (via updateFooter)
+
+Header actions (right → left order of appearance):
+  detail chart link (if detailUrl) → info ⓘ (if infoMessage)
+  → edit ✏️ (quick-links only) → close ×
+
+detailUrl:
+  Fire & EMS:         DEV dev/fire-ems-detail.html / PROD fire-ems-detail.html
+  Traffic Accidents:  DEV dev/traffic-accidents-detail.html /
+                      PROD traffic-accidents-detail.html
+
+Quick Links:
+  .widget-edit-button opens #quicklinks-modal
+  defaultState() supplies five default links; saveQuickLinks() persists
+
+
+================================================================================
+7. WIDGET INVENTORY
+================================================================================
+
+Palette folders (WIDGET_CATEGORIES):
+  time-weather     Time & Weather      🌤️
+  public-safety    Public Safety       🚨
+  prices           Prices & Economy    📈
+  news-status      News & Status       📰
+  personal         Personal            ✨
+  (unknown category ids fall into an "Other" folder at runtime)
+
+ID                        | Title                     | Category       | Default?
+--------------------------|---------------------------|----------------|----------
+wichita-clock             | Wichita Clock             | time-weather   | yes
+wichita-weather           | Wichita Weather           | time-weather   | yes
+wichita-4day-forecast     | 4-Day Forecast            | time-weather   | no
+wichita-air-quality       | Wichita Air Quality       | time-weather   | yes
+wichita-violent-crime     | Wichita Violent Crime     | public-safety  | yes
+wichita-traffic-accidents | Wichita Traffic Accidents | public-safety  | yes
+wichita-fire-ems          | Fire & EMS                | public-safety  | no
+gas-price-trend           | U.S. Gas Price Trend      | prices         | yes
+egg-price-trend           | U.S. Egg Price Trend      | prices         | yes
+potatoes-price-trend      | Midwest Potatoes Price    | prices         | no
+wichita-news              | Wichita News              | news-status    | yes
+platform-status           | Platform Status           | news-status    | no
+happy-widget              | Happy                     | personal       | no
+quick-links               | Quick Links               | personal       | no
+
+REMOVED (do not re-add unless asked):
+  wichita-facts / Wichita Facts — removed v0.2.26
+
+Extra pages (not widgets):
+  fire-ems-detail.html / dev/fire-ems-detail.html
+    Opened from Fire & EMS header chart icon
+    Same ArcGIS data window as the widget
+    Chart.js multi-line: dates on X, top 7 call types as series
+    Frequency table under chart: all call types + counts + share %
+      (includes cancelled/no-incident; "On chart" marks top-7 series)
+    Back button → index.html (prod) / dev/index.html (dev)
+
+  traffic-accidents-detail.html / dev/traffic-accidents-detail.html
+    Opened from Traffic Accidents header chart icon
+    Same ArcGIS yearly FeatureServer layers as the widget
+    Window: most recent Sunday-aligned 14-day period; exclude last 3 calendar
+      days (same revision lag as the widget chart)
+    Chart.js multi-line by OFFENSE_CO (top 7); labels include OFFENSE_DE
+    Frequency table: all offense codes + description + counts + share %
+    Back button → index.html (prod) / dev/index.html (dev)
+
+
+================================================================================
+8. DATA FETCHING
+================================================================================
+
+Three patterns: direct fetch, proxyFetch, charts.
+
+----------------------------------------
+8.1 Direct fetch() — CORS-friendly
+----------------------------------------
+
+OPEN-METEO  https://api.open-meteo.com/v1/forecast?
+  lat=37.6872  lon=-97.3301  timezone=America/Chicago
+
+  Clock:    daily=sunrise,sunset
+  Weather:  current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m
+            hourly=temperature_2m,weather_code
+            temperature_unit=fahrenheit, wind_speed_unit=mph
+            Tabs: Current vs 4-hr Forecast; night clear ✨ / day clear ☀️
+  4-Day:    daily=weather_code,temperature_2m_max,temperature_2m_min
+            forecast_days=4, temperature_unit=fahrenheit
+  Shared WMO conditionMap in weather + 4-day widgets.
+
+WICHITA ARCGIS — helper fetchAllArcGISFeatures(baseUrl)
+  Paginates resultRecordCount=2000 + resultOffset until exhausted.
+
+  Violent Crime
+    .../OpenData/Crime/MapServer/0/query
+    Categories: MURDER, RAPE, SIM_ASSAULT, ROBBERY, AGG_ASSAULT
+    Field: STARTDATETIME (epoch ms)
+    Colors (oldest→newest period): #7f1d1d, #b91c1c, #ef4444
+
+  Traffic Accidents
+    .../OpenData/TrafficAccidents/FeatureServer/{layerId}/query
+    layerId = year - 2017 (loop years when range spans years)
+    Widget fields: ACCIDENT_DATE (epoch ms)
+    Detail fields: ACCIDENT_DATE, OFFENSE_CO, OFFENSE_DE
+    Colors: #92400e, #d97706, #f59e0b
+    detailUrl → traffic-accidents-detail.html (top 7 offense codes × day)
+
+  Crime + traffic both:
+    getAligned14DayPeriods() → last 3 Sunday-aligned 14-day periods
+    build14DaySeries(..., excludeRecentDays=3) drops trailing 3 calendar days
+      (city feeds revise recent days)
+    X labels "Day 1"…"Day 14"; infoMessage notes exclusion
+
+  Fire & EMS  (wichita-fire-ems)
+    .../OpenData/Fire/MapServer/2/query
+    Fields: AlarmDate (epoch ms), Incident_Type, Emer_NEmer
+    Window: lookbackDays=8 ending today, exclude today → past full 7 days
+    UI: "Past Full 7 Days", "Total Calls", top types table
+    skipTopTypes hides cancelled / no-incident labels from top list
+    typeAliases shortens common CAD strings
+    detailUrl → detail chart page (top 7 types × day)
+    Refresh: 12 hours
+
+----------------------------------------
+8.2 proxyFetch() — CORS-blocked APIs
+----------------------------------------
+
+  POST https://ttpr.twotreeservices.com/proxy
+  Body: { "targetUrl": "<absolute URL>", "method": "GET" }
+  Returns a normal fetch Response (.json() / .text()).
+
+  Use proxy for: AirNow, EIA, FRED, KSN RSS, any CORS failure.
+  Do not proxy: Open-Meteo, Wichita ArcGIS.
+
+  Air Quality — https://files.airnowtech.org/airnow/today/reportingarea.dat
+    parseReportingAreaData(text, 'Wichita', 'KS') → buildAirQualitySnapshot()
+    Pollutants: OZONE, PM2.5, PM10 · getAqiStyle() color bands
+
+  Gas (EIA) — petroleum/pri/gnd weekly EPMR NUS, length 12
+  Eggs (FRED) — series APU0000708111
+  Potatoes (FRED) — series APU0200712112
+  News (KSN) — https://www.ksn.com/news/local/feed/  (top 3 headlines)
+  Platform Status — direct first, proxy on failure:
+    Grok  status.x.ai (+ feed.xml)
+    X     developer.x.com/api/status (JSON live monitoring; official UI data)
+          fallback: docs.x.com/status HTML (legacy MDX; often a thin SPA shell)
+          status link: developer.x.com/status
+    Facebook / Instagram via metastatus.com/data/orgs.json
+
+----------------------------------------
+8.3 Charts — createLineChart()
+----------------------------------------
+
+  createLineChart(container, canvasId, labels, datasets)
+  Destroys prior Chart instance; used by gas, egg, potatoes, crime, traffic.
+  Crime/traffic: setTimeout(renderChart, 80) after innerHTML so canvas exists.
+  Fire & EMS detail page builds its own Chart.js config (multi-series).
+
+
+================================================================================
+9. REFRESH INTERVALS
+================================================================================
+
+  Clock                 1 second
+  Happy                 5 minutes
+  Platform Status       5 minutes
+  Weather               30 minutes
+  4-Day Forecast        30 minutes
+  Air Quality           30 minutes
+  News                  30 minutes
+  Violent Crime         12 hours
+  Traffic Accidents     12 hours
+  Fire & EMS            12 hours
+  Gas / Egg / Potatoes  12 hours
+
+Many widgets skip the loading spinner on refresh when cached state exists.
+
+
+================================================================================
+10. LOCALSTORAGE
+================================================================================
+
+Key: wichitaDashboard
+
+  {
+    "slots": [
+      { "id": 0, "widget": { "id": "wichita-clock" } },
+      { "id": 1, "widget": null }
+    ],
+    "slotCount": 8,
+    "widgetStates": {
+      "wichita-weather": { "...": "...", "lastUpdated": 1234567890 },
+      "quick-links": { "links": [{ "text": "...", "url": "..." }] }
+    }
+  }
+
+Default layout applied when storage missing/unreadable, slots empty,
+slotCount < 2, or no slot has a widget.
+
+Stale widget ids (e.g. removed wichita-facts): slot remains but widget does
+not mount; user removes the slot or resets.
+
+
+================================================================================
+11. STYLING
+================================================================================
+
+Paired sheets (do not cross-link):
+  PRODUCTION:  index.html      → style.css?v=X.Y.Z
+  DEVELOPMENT: dev/index.html   → dev/style.css?v=X.Y.Z-dev
+  Detail pages use the matching sheet for their environment.
+
+Edit only dev/style.css while building. Promote merges into style.css.
+
+CSS variables (keep both sheets in sync on promote):
+  --primary: #22d3ee   --bg: #0f172a   --surface: #1e2937
+  --surface2: #111827  --text: #e2e8f0 --text-muted: #64748b
+  --border: #475569
+
+Key class families:
+  Layout:  .grid-container .slot .widget .widget-header .widget-content
+           .widget-footer .widget-header-actions
+  Chrome:  .header-actions .header-linkedin-link .hamburger
+  Widgets: .weather-tabs .forecast-item .chart-container .aqi-* .happy-*
+           .fire-ems-* .quick-link .palette-*
+  Overlays:.widget-info-popup .widget-info-card .widget-detail-button
+  Detail:  .detail-page .detail-main .detail-panel .detail-chart-wrap
+           .detail-back-btn .detail-summary*
+
+Dimensions: 300×300 slots · 25px header · 20px footer · 5px content pad
+Widget hover under-glow: ~6px reach
+
+
+================================================================================
+12. SEO / OPEN GRAPH
+================================================================================
+
+In <head> (index / dev/index):
+  meta description, og:title, og:description, og:type, og:url, og:site_name
+  twitter:card, twitter:title, twitter:description
+
+  description: "A customizable web dashboard for Wichita."
+  og:url:      https://twotreeservices.com/wichita/
+
+No og:image yet (text-only link previews).
+
+
+================================================================================
+13. VERSIONING
+================================================================================
+
+PRODUCTION (bump only on promote or explicit prod version order):
+  1. <!-- vX.Y.Z --> in index.html (and detail pages)
+  2. Header subtitle: Kansas Vibe Code - vX.Y.Z
+  3. style.css?v=X.Y.Z  (+ full host URL on index)
+  4. style.css header Version comment
+  5. botdescription.txt Version line
+  6. Commit message mentions version
+
+DEVELOPMENT (default for all other work):
+  1. <!-- vX.Y.Z-dev --> in dev/index.html / dev detail pages
+  2. Subtitle with -dev
+  3. dev/style.css?v=X.Y.Z-dev
+  4. dev/style.css header Version comment
+  5. dev/botdescription.txt Version line
+
+Never touch production version markers during sandbox work.
+"Bump version" without "promote"/"production" → DEV only (or ask).
+Semantic-ish: patch = small fix; minor = feature.
+
+
+================================================================================
+14. DEPLOYMENT
+================================================================================
+
+Environment: WSL2 at the repository root
+  git push works (Git Credential Manager)
+  origin → GitHub main → host serves https://twotreeservices.com/wichita/
+
+----------------------------------------
+14.1 Scopes (pick before git add)
+----------------------------------------
+
+  | Scope | Stage these                                              | Live? |
+  |-------|----------------------------------------------------------|-------|
+  | DEV   | dev/index.html, dev/style.css, dev/botdescription.txt       | No    |
+  |       | + changed dev detail pages (e.g. dev/fire-ems-detail.html)|       |
+  | APP   | index.html, style.css, botdescription.txt                | Yes   |
+  |       | + changed prod detail pages (e.g. fire-ems-detail.html)  |       |
+  | MIXED | exact paths the user lists                               | if    |
+  |       |                                                          | index |
+
+  Default after feature work: DEV, then push.
+  APP only on explicit promote.
+
+----------------------------------------
+14.2 Known-good path
+----------------------------------------
+
+  1. Edit under the repository root
+  2. Decide scope (ask if unclear — never guess APP)
+  3. Pre-flight:
+       git status · git diff --stat · git log -5 --oneline
+       HTML: DOCTYPE, not empty, not PLACEHOLDER, ~90KB+ for full app
+       Version markers match intent; CSS ?v= bumped if styles changed
+  4. git add <named paths only>
+  5. git diff --staged — confirm no extras
+  6. git commit (HEREDOC message; include version on APP)
+  7. git push origin main
+  8. git log -1 — report SHA, scope, whether live dashboard changes
+  9. Stop
+
+----------------------------------------
+14.3 Lessons learned (do not re-learn)
+----------------------------------------
+
+  1. MCP push_files / inventing file bodies destroyed production (stubs,
+     PLACEHOLDER). Always commit real on-disk bytes with git.
+  2. git push from WSL is the primary and sufficient deploy path.
+  3. Pushing DEV updates sandbox only; live changes only when PROD files ship.
+  4. Scope before staging. "push it" after sandbox work ≠ promote.
+  5. Ship companion files together (HTML + CSS + briefing when each changed).
+  6. Never promote WIP; still push finished DEV work so it is reviewable.
+  7. Explicit paths only — never git add .
+  8. One commit, one push, one verify. No force-push on main.
+  9. Briefing WIP → only dev/botdescription.txt until promote. Never edit
+     botdescription.txt "to keep docs in sync" outside an explicit promote
+     (copy this file → botdescription.txt on promote).
+ 10. Do not "fix" production without an explicit user request.
+
+----------------------------------------
+14.4 Size heuristics
+----------------------------------------
+
+  index.html / dev/index.html           ~100–130 KB
+  style.css / dev/style.css             ~14–30 KB
+  botdescription*.txt                  ~20–50 KB
+  fire-ems-detail*.html                ~15–20 KB
+
+  Red flags: full-app HTML under ~50 KB; PLACEHOLDER / "<will be loaded>";
+  unexpected junk files; staging PROD without promote.
+
+----------------------------------------
+14.5 Failure modes (quick reference)
+----------------------------------------
+
+  MCP PLACEHOLDER / stub HTML     → live site destroyed
+  Editing/staging PROD for WIP    → accidental production ship
+  Leaving DEV unpushed            → user cannot review on host
+  index → dev/style.css            → prod depends on sandbox sheet
+  Invalid JS in main script       → entire dashboard blank
+  Force-push / history rewrite    → lost work
+  Requiring live curl for DEV     → false "deploy failed"
+
+
+================================================================================
+15. CODING CONVENTIONS
+================================================================================
+
+DO:
+  - Minimal, task-focused changes; match existing style ("// Widget: Name")
+  - All new work in DEV files; push DEV when ready for review
+  - Promote only on explicit request (copy pairs, don't hand-rewrite PROD)
+  - saveFn(state); set lastUpdated on success; handle isLoading / error
+  - e.stopImmediatePropagation() on header button clicks
+  - createLineChart for Chart.js lifecycle
+  - allWidgets id must match widget.id
+
+DO NOT:
+  - Edit PROD unless promote / explicit production target
+  - Treat "push it" as a production ship
+  - Add npm, bundlers, or frameworks without request
+  - Use innerHTML += (full replace or createElement)
+  - Create markdown docs unless asked (briefings are .txt only)
+  - Drive-by refactors; re-add wichita-facts; MCP invent content; force-push
+
+Large edits:
+  StrReplace can fail on curly/smart apostrophes. Prefer Python with clear
+  string boundaries for large removals.
+
+
+================================================================================
+16. CHECKLISTS
+================================================================================
+
+----------------------------------------
+16.1 New widget
+----------------------------------------
+
+  [ ] const myWidget = { id, title, icon, category, render, init }
+  [ ] Fetch strategy: direct / proxyFetch / ArcGIS
+  [ ] Register in allWidgets; category ∈ WIDGET_CATEGORIES
+  [ ] Optional: DEFAULT_WIDGET_IDS, infoMessage, detailUrl, defaultState
+  [ ] CSS in dev/style.css if needed
+  [ ] Refresh interval in init()
+  [ ] Document here if agents need the new behavior
+  [ ] DEV push for review
+  [ ] On promote: merge pairs (include detail pages if any); bump prod version
+
+----------------------------------------
+16.2 New proxied API
+----------------------------------------
+
+  [ ] Confirm browser CORS failure on direct fetch
+  [ ] proxyFetch(absoluteUrl); parse .json() or .text()
+  [ ] User-friendly state.error on failure
+
+----------------------------------------
+16.3 Post-deploy
+----------------------------------------
+
+  [ ] Push succeeded; SHA recorded
+  [ ] Scope correct (DEV vs APP)
+  [ ] DOCTYPE + size OK; no PLACEHOLDER
+  [ ] Version markers match intent
+  [ ] DEV: sandbox reviewable on host
+  [ ] APP: PROD files include companions (HTML + CSS + briefing + details)
+  [ ] APP optional: curl live index
+
+
+================================================================================
+17. SUBAGENT PROMPTS
+================================================================================
+
+Feature work:
+
+  Task: [describe change]
+  Project: Wichita Dashboard — read dev/botdescription.txt first
+  Repo: davidylin/twotree-wichita (main)
+  Local: the repository root
+  Live: https://twotreeservices.com/wichita/
+  Sandbox: https://twotreeservices.com/wichita/dev/
+  Version: vX.Y.Z (prod) / vX.Y.Z-dev (sandbox)
+
+  Rules:
+  - Static HTML + CSS; no build step
+  - All new work in DEV files only
+  - Never edit PROD unless user said promote
+  - Always git push DEV when sandbox work is ready for review
+  - CORS-blocked APIs → proxyFetch; Open-Meteo + ArcGIS → direct
+  - Deploy: Section 14 — git commit real disk files, push origin main
+  - Never MCP push_files / PLACEHOLDER
+  - Do not re-add wichita-facts
+  - After JS edits: invalid methods blank the whole dashboard
+
+  Return: summary, scope (DEV/APP), version, commit SHA
+
+Deploy-only: follow Section 14 exactly; never a vague "deploy the site" prompt.
+
+
+================================================================================
+18. VERSION HISTORY
+================================================================================
+
+  v0.2.24    4-day forecast widget
+  v0.2.25    Comment cleanup
+  v0.2.26    Removed Wichita Facts
+  v0.2.27    Info popup on violent crime
+  v0.3.0     Info popup on traffic accidents; Open Graph meta
+  v0.3.1–2   4-day forecast 3-digit temp layout fix
+  v0.3.3     Platform Status widget (Grok, X, Facebook, Instagram)
+  v0.3.4     Invalid async method syntax (blank dashboard)
+  v0.3.5     Fixed SyntaxError (fetchTextDirectOrProxy)
+  (docs)     git push from WSL replaces MCP push_files
+  v0.3.6     Widget palette category folders
+  v0.3.7     Header "App Manager LinkedIn" button
+  v0.3.8     Fire & EMS pulse widget; blank-slot fix for unknown ids
+  v1.0.0     Version milestone
+  (docs)     Split styles: dev/style.css vs production CSS
+  (docs)     Hard workflow: DEV first; promote only on request
+  v1.0.1     Crime/traffic charts exclude most recent 3 calendar days
+  (docs)     Sandbox briefing pair; always push DEV; promote ships PROD trio
+  v1.0.2     Fire & EMS: past full 7 days (8-day lookback excluding today)
+  v1.0.3     Refresh intervals aligned (weather/news 30m; happy/platform 5m;
+             most data widgets 12h)
+  v1.0.4     Widget hover under-glow tightened to ~6px
+  v1.0.5     File naming: dev* prefix for sandbox; production style.css
+             (was wichitastyle.css); Fire & EMS detail page + header chart icon;
+             formal promote re-sync of PROD pairs from DEV
+  (docs)     Briefing rewrite for readability and completeness
+  (docs)     Clarify: briefing edits only in dev/botdescription.txt until
+             promote copies it to botdescription.txt
+  v1.0.5     PROMOTE: briefing workflow clarification + re-sync PROD pairs
+             from DEV (root briefing matches dev/botdescription body)
+  v1.0.6-dev Fire & EMS detail: full call-type frequency table under chart
+             (rank, type, calls, share bar, on-chart flag)
+  v1.0.6     PROMOTE: Fire & EMS detail frequency table + detail-page CSS
+             to production (fire-ems-detail.html, style.css, briefing)
+  v1.0.7-dev Traffic Accidents detail page by offense code (chart icon,
+             top 7 daily lines, full code frequency table); naming pair
+             traffic-accidents-detail.html / dev/traffic-accidents-detail.html
+  v1.0.7     PROMOTE: Traffic Accidents detail by offense code
+             (traffic-accidents-detail.html + chart icon + styles + briefing)
+  v1.0.8-dev Platform Status: X uses developer.x.com/api/status JSON
+             (docs.x.com/status became a client-rendered shell → unknown)
+  v1.0.8     PROMOTE: Platform Status X fix via developer.x.com/api/status
+             JSON (docs.x.com/status SPA shell no longer parseable)
+  v1.0.9-dev Sandbox moved to dev/ folder; drop dev* filename prefix
+             (dev/index.html, dev/style.css, etc.; same names as prod)
+  v1.0.9     PROMOTE: sandbox lives in dev/ folder (same basenames as
+             production; drop legacy dev* prefix layout on prod docs)
+
+
+================================================================================
+19. KNOWN FUTURE IMPROVEMENTS (NOT IMPLEMENTED)
+================================================================================
+
+  - og:image for social link previews
+  - Split monolithic HTML into modules (would need build or dynamic imports)
+  - Shared constant for traffic/crime infoMessage copy
+  - Optional thin redirects from legacy paths (dev.html, wichitastyle.css)
+
+
+================================================================================
+END OF BRIEFING
+================================================================================

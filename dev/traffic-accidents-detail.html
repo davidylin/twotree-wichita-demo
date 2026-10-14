@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<!-- v1.0.9-dev — Traffic Accidents detail (sandbox: dev/traffic-accidents-detail.html + dev/style.css) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Wichita traffic accidents by offense code — recent 14-day window.">
+    <meta property="og:title" content="Traffic Accidents Detail — Wichita Dashboard">
+    <meta property="og:description" content="Daily traffic accident counts by offense code for Wichita.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://twotreeservices.com/wichita/dev/traffic-accidents-detail.html">
+    <meta property="og:site_name" content="Wichita Dashboard">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Traffic Accidents Detail — Wichita Dashboard">
+    <meta name="twitter:description" content="Daily traffic accident counts by offense code for Wichita.">
+    <title>Traffic Accidents Detail — Wichita Dashboard (dev)</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="style.css?v=1.0.9-dev">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="detail-page">
+
+    <header>
+        <div class="header-left">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <rect x="8" y="39" width="32" height="4" rx="1" fill="#22d3ee" fill-opacity="0.25"/>
+                <path d="M24 12 L18 28 L20 36 L26 36 L28 28 Z" stroke="#22d3ee" stroke-width="4" stroke-linejoin="round" fill="#1e2937"/>
+                <circle cx="24" cy="18" r="6" stroke="#22d3ee" stroke-width="3" fill="#1e2937"/>
+                <path d="M18 26 L12 18" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+                <path d="M30 26 L36 18" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <div>
+                <div class="header-title">Traffic Accidents Detail</div>
+                <div class="header-subtitle">Kansas Vibe Code - v1.0.9-dev · By offense code</div>
+            </div>
+        </div>
+        <div class="header-actions">
+            <a href="index.html" class="header-linkedin-link">Wichita Dashboard</a>
+        </div>
+    </header>
+
+    <main class="detail-main">
+        <section class="detail-panel">
+            <div class="detail-panel-header">
+                <div>
+                    <h1 class="detail-heading">Top offense codes by day</h1>
+                    <p class="detail-subheading" id="detail-range-label">Loading date range…</p>
+                </div>
+                <div class="detail-summary" id="detail-summary" aria-live="polite">
+                    <div class="detail-summary-item">
+                        <div class="detail-summary-value" id="summary-total">—</div>
+                        <div class="detail-summary-label">Total accidents</div>
+                    </div>
+                    <div class="detail-summary-item">
+                        <div class="detail-summary-value" id="summary-types">—</div>
+                        <div class="detail-summary-label">Codes charted</div>
+                    </div>
+                    <div class="detail-summary-item">
+                        <div class="detail-summary-value" id="summary-all-types">—</div>
+                        <div class="detail-summary-label">All codes listed</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-status" id="detail-status">Loading traffic accident data…</div>
+
+            <div class="detail-chart-wrap" id="detail-chart-wrap" hidden>
+                <canvas id="trafficDetailChart" aria-label="Wichita traffic accidents by offense code over the recent period"></canvas>
+            </div>
+
+            <div class="detail-data-section" id="detail-data-section" hidden>
+                <div class="detail-data-header">
+                    <h2 class="detail-data-heading">All offense codes &amp; frequencies</h2>
+                    <p class="detail-data-subheading" id="detail-data-subheading">
+                        Full breakdown for the same window as the chart (sorted by count).
+                    </p>
+                </div>
+                <div class="detail-data-table-wrap">
+                    <table class="detail-data-table" id="detail-data-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="detail-data-th-num">#</th>
+                                <th scope="col" class="detail-data-th-code">Code</th>
+                                <th scope="col">Offense description</th>
+                                <th scope="col" class="detail-data-th-num">Accidents</th>
+                                <th scope="col" class="detail-data-th-num">Share</th>
+                                <th scope="col" class="detail-data-th-flag">On chart</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detail-data-tbody">
+                        </tbody>
+                        <tfoot id="detail-data-tfoot">
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <p class="detail-footnote">
+                City of Wichita open traffic accident data (ArcGIS FeatureServer, yearly layers).
+                Window is the most recent Sunday-aligned 14-day period used by the dashboard widget,
+                with the last 3 calendar days excluded because city records often revise trailing days.
+                The line chart shows the top 7 offense codes by volume; the table lists every code
+                in the window. Not a live CAD feed.
+            </p>
+        </section>
+
+        <div class="detail-footer-actions">
+            <a href="index.html" class="detail-back-btn">← Back to Wichita Dashboard</a>
+        </div>
+    </main>
+
+    <script>
+        // Mirrors wichita-traffic-accidents widget data rules (dev/index.html).
+        const CONFIG = {
+            featureServer: 'https://gismaps.wichita.gov/ageweb/rest/services/OpenData/TrafficAccidents/FeatureServer',
+            periodDays: 14,
+            excludeRecentDays: 3,
+            topCodeCount: 7,
+            lineColors: [
+                '#f59e0b',
+                '#fbbf24',
+                '#d97706',
+                '#fb923c',
+                '#f87171',
+                '#eab308',
+                '#a3e635'
+            ]
+        };
+
+        function formatQueryDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function toLocalDayKey(epochMs) {
+            return formatQueryDate(new Date(epochMs));
+        }
+
+        function startOfLocalDay(d) {
+            const x = new Date(d);
+            x.setHours(0, 0, 0, 0);
+            return x;
+        }
+
+        function getSundayOfWeek(date) {
+            const d = new Date(date);
+            d.setHours(0, 0, 0, 0);
+            const weekday = d.getDay();
+            return new Date(d.getTime() - weekday * 86400000);
+        }
+
+        // Same alignment as the dashboard widget: last 3 Sunday-aligned 14-day periods.
+        function getAligned14DayPeriods(today) {
+            const normalizedToday = startOfLocalDay(today);
+            const year = normalizedToday.getFullYear();
+            const epochSunday = getSundayOfWeek(new Date(year, 0, 1));
+
+            const periodStarts = [];
+            let currentStart = new Date(epochSunday);
+            while (currentStart <= normalizedToday) {
+                periodStarts.push(new Date(currentStart));
+                currentStart.setDate(currentStart.getDate() + 14);
+            }
+
+            return periodStarts.slice(-3).map(start => {
+                const end = new Date(start);
+                end.setDate(end.getDate() + 13);
+                return { start: new Date(start), end: end };
+            });
+        }
+
+        function formatDayLabel(dayKey) {
+            const [y, m, d] = dayKey.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function formatRangeLabel(start, endInclusive) {
+            const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+            return `${start.toLocaleDateString('en-US', opts)} – ${endInclusive.toLocaleDateString('en-US', opts)}`;
+        }
+
+        function friendlyOffense(description, maxLen = 42) {
+            let t = String(description || '').trim();
+            if (!t) return 'Unknown offense';
+            // Soften ALL-CAPS CAD strings
+            if (t === t.toUpperCase() && t.length > 4) {
+                t = t.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+            }
+            t = t.replace(/\s+/g, ' ').trim();
+            if (t.length > maxLen) t = t.slice(0, maxLen - 1) + '…';
+            return t;
+        }
+
+        function offenseKey(code, description) {
+            if (code != null && code !== '') return String(code);
+            const d = String(description || '').trim();
+            return d ? `desc:${d}` : 'unknown';
+        }
+
+        async function fetchAllArcGISFeatures(baseUrl) {
+            const pageSize = 2000;
+            const allFeatures = [];
+            let offset = 0;
+
+            while (true) {
+                const pageUrl = `${baseUrl}&resultRecordCount=${pageSize}&resultOffset=${offset}`;
+                const response = await fetch(pageUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const features = data?.features || [];
+                allFeatures.push(...features);
+
+                if (features.length === 0 || features.length < pageSize || !data.exceededTransferLimit) {
+                    break;
+                }
+                offset += pageSize;
+            }
+
+            return allFeatures;
+        }
+
+        function setStatus(message, isError) {
+            const el = document.getElementById('detail-status');
+            el.hidden = !message;
+            el.textContent = message || '';
+            el.classList.toggle('detail-status-error', Boolean(isError));
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderFrequencyTable(allCodes, totalAccidents, chartedKeySet) {
+            const section = document.getElementById('detail-data-section');
+            const tbody = document.getElementById('detail-data-tbody');
+            const tfoot = document.getElementById('detail-data-tfoot');
+            const sub = document.getElementById('detail-data-subheading');
+
+            if (!allCodes.length) {
+                section.hidden = true;
+                tbody.innerHTML = '';
+                tfoot.innerHTML = '';
+                return;
+            }
+
+            sub.textContent =
+                `${allCodes.length} offense code${allCodes.length === 1 ? '' : 's'} · ` +
+                `${totalAccidents.toLocaleString()} total accidents in this window · sorted by frequency`;
+
+            tbody.innerHTML = allCodes.map((row, idx) => {
+                const share = totalAccidents > 0 ? ((row.count / totalAccidents) * 100) : 0;
+                const shareLabel = share < 0.1 && row.count > 0
+                    ? '<0.1%'
+                    : `${share.toFixed(share < 10 ? 1 : 0)}%`;
+                const onChart = chartedKeySet.has(row.key);
+                const display = friendlyOffense(row.description, 72);
+                const codeLabel = row.code != null && row.code !== '' ? String(row.code) : '—';
+                return `
+                    <tr class="${onChart ? 'detail-data-row-charted' : ''}">
+                        <td class="detail-data-td-num">${idx + 1}</td>
+                        <td class="detail-data-td-code"><code class="detail-data-code">${escapeHtml(codeLabel)}</code></td>
+                        <td class="detail-data-td-type" title="${escapeHtml(row.description || '')}">
+                            <span class="detail-data-type-label">${escapeHtml(display)}</span>
+                        </td>
+                        <td class="detail-data-td-num">${row.count.toLocaleString()}</td>
+                        <td class="detail-data-td-num">
+                            <span class="detail-data-share-wrap">
+                                <span class="detail-data-share-bar detail-data-share-bar-amber" style="width:${Math.min(100, share)}%"></span>
+                                <span class="detail-data-share-text">${shareLabel}</span>
+                            </span>
+                        </td>
+                        <td class="detail-data-td-flag">
+                            ${onChart
+                                ? '<span class="detail-data-badge detail-data-badge-yes">Yes</span>'
+                                : '<span class="detail-data-badge detail-data-badge-no">—</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            tfoot.innerHTML = `
+                <tr>
+                    <th scope="row" colspan="3">Total</th>
+                    <td class="detail-data-td-num">${totalAccidents.toLocaleString()}</td>
+                    <td class="detail-data-td-num">100%</td>
+                    <td class="detail-data-td-flag"></td>
+                </tr>
+            `;
+
+            section.hidden = false;
+        }
+
+        function renderChart(labels, datasets) {
+            const canvas = document.getElementById('trafficDetailChart');
+            const existing = Chart.getChart(canvas);
+            if (existing) existing.destroy();
+
+            new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e2e8f0',
+                                font: { size: 12, family: 'Inter, system-ui, sans-serif' },
+                                boxWidth: 14,
+                                padding: 14
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e2937',
+                            titleColor: '#e2e8f0',
+                            bodyColor: '#cbd5e1',
+                            borderColor: '#475569',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 12 },
+                                precision: 0
+                            },
+                            grid: { color: '#334155' },
+                            title: {
+                                display: true,
+                                text: 'Accidents',
+                                color: '#94a3b8',
+                                font: { size: 12, weight: '500' }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 12 }
+                            },
+                            grid: { color: '#334155' },
+                            title: {
+                                display: true,
+                                text: 'Date',
+                                color: '#94a3b8',
+                                font: { size: 12, weight: '500' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadDetail() {
+            const chartWrap = document.getElementById('detail-chart-wrap');
+            const dataSection = document.getElementById('detail-data-section');
+            try {
+                setStatus('Loading traffic accident data…', false);
+                chartWrap.hidden = true;
+                dataSection.hidden = true;
+
+                const today = startOfLocalDay(new Date());
+                const periods = getAligned14DayPeriods(today);
+                if (!periods.length) throw new Error('No aligned periods');
+
+                // Most recent 14-day period, clipped so trailing excludeRecentDays are out.
+                const period = periods[periods.length - 1];
+                const effectiveEnd = new Date(today);
+                effectiveEnd.setDate(effectiveEnd.getDate() - CONFIG.excludeRecentDays);
+
+                const rangeStart = startOfLocalDay(period.start);
+                let rangeEndInclusive = startOfLocalDay(period.end);
+                if (rangeEndInclusive > effectiveEnd) rangeEndInclusive = new Date(effectiveEnd);
+
+                if (rangeEndInclusive < rangeStart) {
+                    setStatus('No complete days available in the current period after revision lag.', true);
+                    return;
+                }
+
+                // Exclusive end for ArcGIS TIMESTAMP query
+                const rangeEndExclusive = new Date(rangeEndInclusive);
+                rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 1);
+
+                document.getElementById('detail-range-label').textContent =
+                    formatRangeLabel(rangeStart, rangeEndInclusive) +
+                    ` · last ${CONFIG.excludeRecentDays} days excluded (likely revised)`;
+
+                const startStr = formatQueryDate(rangeStart);
+                const endStr = formatQueryDate(rangeEndExclusive);
+                const startYear = rangeStart.getFullYear();
+                const endYear = rangeEndInclusive.getFullYear();
+
+                let features = [];
+                for (let year = startYear; year <= endYear; year++) {
+                    const layerId = year - 2017;
+                    if (layerId < 0) continue;
+                    const whereClause = encodeURIComponent(
+                        `ACCIDENT_DATE >= TIMESTAMP '${startStr}' AND ACCIDENT_DATE < TIMESTAMP '${endStr}'`
+                    );
+                    const queryBase =
+                        `${CONFIG.featureServer}/${layerId}/query?where=${whereClause}` +
+                        `&outFields=ACCIDENT_DATE,OFFENSE_CO,OFFENSE_DE` +
+                        `&returnGeometry=false&orderByFields=ACCIDENT_DATE ASC&f=json`;
+                    const layerFeatures = await fetchAllArcGISFeatures(queryBase);
+                    features = features.concat(layerFeatures);
+                }
+
+                // Ordered day keys in the clipped window
+                const dayKeys = [];
+                for (let d = new Date(rangeStart); d <= rangeEndInclusive; d.setDate(d.getDate() + 1)) {
+                    dayKeys.push(formatQueryDate(d));
+                }
+
+                const codeMeta = new Map(); // key -> { code, description }
+                const codeTotals = new Map();
+                const codeByDay = new Map(); // key -> Map(dayKey -> count)
+                let totalAccidents = 0;
+
+                features.forEach(f => {
+                    const a = f.attributes || {};
+                    const alarm = a.ACCIDENT_DATE;
+                    if (alarm == null) return;
+                    const dayKey = toLocalDayKey(alarm);
+                    if (!dayKeys.includes(dayKey)) return;
+
+                    totalAccidents += 1;
+                    const code = a.OFFENSE_CO;
+                    const description = String(a.OFFENSE_DE || '').trim();
+                    const key = offenseKey(code, description);
+
+                    if (!codeMeta.has(key)) {
+                        codeMeta.set(key, {
+                            code: code != null && code !== '' ? code : null,
+                            description: description || 'Unknown offense'
+                        });
+                    } else if (description && codeMeta.get(key).description === 'Unknown offense') {
+                        codeMeta.get(key).description = description;
+                    }
+
+                    codeTotals.set(key, (codeTotals.get(key) || 0) + 1);
+                    if (!codeByDay.has(key)) codeByDay.set(key, new Map());
+                    const dayMap = codeByDay.get(key);
+                    dayMap.set(dayKey, (dayMap.get(dayKey) || 0) + 1);
+                });
+
+                const allCodes = [...codeTotals.entries()]
+                    .map(([key, count]) => {
+                        const meta = codeMeta.get(key) || { code: null, description: 'Unknown offense' };
+                        return {
+                            key,
+                            code: meta.code,
+                            description: meta.description,
+                            count
+                        };
+                    })
+                    .sort((a, b) => b.count - a.count || String(a.code).localeCompare(String(b.code)));
+
+                const topCodes = allCodes.slice(0, CONFIG.topCodeCount);
+                const chartedKeySet = new Set(topCodes.map(t => t.key));
+
+                document.getElementById('summary-total').textContent = totalAccidents.toLocaleString();
+                document.getElementById('summary-types').textContent = String(topCodes.length);
+                document.getElementById('summary-all-types').textContent = String(allCodes.length);
+
+                if (!totalAccidents) {
+                    setStatus('No traffic accident data available for this window.', true);
+                    return;
+                }
+
+                renderFrequencyTable(allCodes, totalAccidents, chartedKeySet);
+
+                if (!topCodes.length) {
+                    setStatus('No offense codes to chart for this window (table still lists totals).', false);
+                    return;
+                }
+
+                const labels = dayKeys.map(formatDayLabel);
+                const datasets = topCodes.map((row, idx) => {
+                    const dayMap = codeByDay.get(row.key) || new Map();
+                    const color = CONFIG.lineColors[idx % CONFIG.lineColors.length];
+                    const codePart = row.code != null ? String(row.code) : '?';
+                    const label = `${codePart} · ${friendlyOffense(row.description, 28)}`;
+                    return {
+                        label,
+                        data: dayKeys.map(k => dayMap.get(k) || 0),
+                        borderColor: color,
+                        backgroundColor: color + '33',
+                        tension: 0.3,
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: color
+                    };
+                });
+
+                setStatus('', false);
+                chartWrap.hidden = false;
+                setTimeout(() => renderChart(labels, datasets), 40);
+            } catch (e) {
+                console.error(e);
+                setStatus('Unable to load traffic accident data. Please try again later.', true);
+                chartWrap.hidden = true;
+                dataSection.hidden = true;
+            }
+        }
+
+        loadDetail();
+    </script>
+</body>
+</html>

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<!-- v1.0.9 — Fire & EMS Detail (PROD: fire-ems-detail.html + style.css) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Wichita Fire & EMS call volume by type — past full 7 days.">
+    <meta property="og:title" content="Fire & EMS Detail — Wichita Dashboard">
+    <meta property="og:description" content="Daily call counts by type for Wichita Fire & EMS.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://twotreeservices.com/wichita/fire-ems-detail.html">
+    <meta property="og:site_name" content="Wichita Dashboard">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Fire & EMS Detail — Wichita Dashboard">
+    <meta name="twitter:description" content="Daily call counts by type for Wichita Fire & EMS.">
+    <title>Fire & EMS Detail — Wichita Dashboard</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="style.css?v=1.0.9">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="detail-page">
+
+    <header>
+        <div class="header-left">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                <rect x="8" y="39" width="32" height="4" rx="1" fill="#22d3ee" fill-opacity="0.25"/>
+                <path d="M24 12 L18 28 L20 36 L26 36 L28 28 Z" stroke="#22d3ee" stroke-width="4" stroke-linejoin="round" fill="#1e2937"/>
+                <circle cx="24" cy="18" r="6" stroke="#22d3ee" stroke-width="3" fill="#1e2937"/>
+                <path d="M18 26 L12 18" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+                <path d="M30 26 L36 18" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <div>
+                <div class="header-title">Fire &amp; EMS Detail</div>
+                <div class="header-subtitle">Kansas Vibe Code - v1.0.9 · Past full 7 days</div>
+            </div>
+        </div>
+        <div class="header-actions">
+            <a href="index.html" class="header-linkedin-link">Wichita Dashboard</a>
+        </div>
+    </header>
+
+    <main class="detail-main">
+        <section class="detail-panel">
+            <div class="detail-panel-header">
+                <div>
+                    <h1 class="detail-heading">Top call types by day</h1>
+                    <p class="detail-subheading" id="detail-range-label">Loading date range…</p>
+                </div>
+                <div class="detail-summary" id="detail-summary" aria-live="polite">
+                    <div class="detail-summary-item">
+                        <div class="detail-summary-value" id="summary-total">—</div>
+                        <div class="detail-summary-label">Total calls</div>
+                    </div>
+                    <div class="detail-summary-item">
+                        <div class="detail-summary-value" id="summary-types">—</div>
+                        <div class="detail-summary-label">Types charted</div>
+                    </div>
+                    <div class="detail-summary-item">
+                        <div class="detail-summary-value" id="summary-all-types">—</div>
+                        <div class="detail-summary-label">All types listed</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-status" id="detail-status">Loading Fire &amp; EMS data…</div>
+
+            <div class="detail-chart-wrap" id="detail-chart-wrap" hidden>
+                <canvas id="fireEmsDetailChart" aria-label="Fire and EMS calls by type over the past full 7 days"></canvas>
+            </div>
+
+            <div class="detail-data-section" id="detail-data-section" hidden>
+                <div class="detail-data-header">
+                    <h2 class="detail-data-heading">All call types &amp; frequencies</h2>
+                    <p class="detail-data-subheading" id="detail-data-subheading">
+                        Full breakdown for the same window as the chart (sorted by call count).
+                    </p>
+                </div>
+                <div class="detail-data-table-wrap">
+                    <table class="detail-data-table" id="detail-data-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="detail-data-th-num">#</th>
+                                <th scope="col">Call type</th>
+                                <th scope="col" class="detail-data-th-num">Calls</th>
+                                <th scope="col" class="detail-data-th-num">Share</th>
+                                <th scope="col" class="detail-data-th-flag">On chart</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detail-data-tbody">
+                        </tbody>
+                        <tfoot id="detail-data-tfoot">
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <p class="detail-footnote">
+                City of Wichita open Fire/EMS incident data. Same window as the dashboard widget:
+                most recent 8 calendar days excluding today (past full 7 completed days).
+                The line chart shows the top 7 non-cancelled call types; the table lists every
+                type in the window (including cancelled / no-incident labels) so you can copy
+                the full frequencies. Not a live 911 feed.
+            </p>
+        </section>
+
+        <div class="detail-footer-actions">
+            <a href="index.html" class="detail-back-btn">← Back to Wichita Dashboard</a>
+        </div>
+    </main>
+
+    <script>
+        // Mirrors wichita-fire-ems widget data rules (dev/index.html) for the same ArcGIS layer.
+        const CONFIG = {
+            layerUrl: 'https://gismaps.wichita.gov/ageweb/rest/services/OpenData/Fire/MapServer/2/query',
+            lookbackDays: 8,
+            summaryDays: 7,
+            topTypeCount: 7,
+            skipTopTypes: {
+                '': true,
+                'cancelled': true,
+                'no incident found upon arrival / location error': true,
+                'dispatched & cancelled en route': true
+            },
+            typeAliases: {
+                'breathing problems': 'Breathing',
+                'chest pain (non-trauma)': 'Chest pain',
+                'sick case': 'Illness',
+                'lift assist': 'Lift assist',
+                'fall': 'Fall',
+                'motor vehicle collision': 'Vehicle crash',
+                'convulsions / seizures': 'Seizures',
+                'unknown problem': 'Unknown',
+                'citizen assist / service call': 'Citizen assist',
+                'unconscious / fainting': 'Unconscious',
+                'traffic / transportation incident': 'Traffic incident',
+                'heart problems / a.i.c.d.': 'Heart problems',
+                'abdominal pain / problems': 'Abdominal pain',
+                'overdose / poisoning': 'Overdose',
+                'psychiatric / abnormal behavior': 'Psychiatric',
+                'traumatic injury': 'Trauma',
+                'structure fire': 'Structure fire',
+                'outside fire': 'Outside fire',
+                'alarm system activation': 'Alarm'
+            },
+            lineColors: [
+                '#22d3ee',
+                '#f59e0b',
+                '#a78bfa',
+                '#4ade80',
+                '#f87171',
+                '#38bdf8',
+                '#f472b6'
+            ]
+        };
+
+        function formatQueryDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function toLocalDayKey(epochMs) {
+            return formatQueryDate(new Date(epochMs));
+        }
+
+        function startOfLocalDay(d) {
+            const x = new Date(d);
+            x.setHours(0, 0, 0, 0);
+            return x;
+        }
+
+        function friendlyType(type, maxLen = 32) {
+            const raw = String(type || 'Unknown').trim();
+            const alias = CONFIG.typeAliases[raw.toLowerCase()];
+            let t = alias || raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+            if (!alias && t === t.toUpperCase() && t.length > 3) {
+                t = t.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+            }
+            if (t.length > maxLen) t = t.slice(0, maxLen - 1) + '…';
+            return t;
+        }
+
+        function formatDayLabel(dayKey) {
+            const [y, m, d] = dayKey.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function formatRangeLabel(start, endExclusive) {
+            const endInclusive = new Date(endExclusive);
+            endInclusive.setDate(endInclusive.getDate() - 1);
+            const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+            return `${start.toLocaleDateString('en-US', opts)} – ${endInclusive.toLocaleDateString('en-US', opts)}`;
+        }
+
+        async function fetchAllArcGISFeatures(baseUrl) {
+            const pageSize = 2000;
+            const allFeatures = [];
+            let offset = 0;
+
+            while (true) {
+                const pageUrl = `${baseUrl}&resultRecordCount=${pageSize}&resultOffset=${offset}`;
+                const response = await fetch(pageUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const features = data?.features || [];
+                allFeatures.push(...features);
+
+                if (features.length === 0 || features.length < pageSize || !data.exceededTransferLimit) {
+                    break;
+                }
+                offset += pageSize;
+            }
+
+            return allFeatures;
+        }
+
+        function setStatus(message, isError) {
+            const el = document.getElementById('detail-status');
+            el.hidden = !message;
+            el.textContent = message || '';
+            el.classList.toggle('detail-status-error', Boolean(isError));
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderFrequencyTable(allTypes, totalCalls, chartedTypeSet) {
+            const section = document.getElementById('detail-data-section');
+            const tbody = document.getElementById('detail-data-tbody');
+            const tfoot = document.getElementById('detail-data-tfoot');
+            const sub = document.getElementById('detail-data-subheading');
+
+            if (!allTypes.length) {
+                section.hidden = true;
+                tbody.innerHTML = '';
+                tfoot.innerHTML = '';
+                return;
+            }
+
+            sub.textContent =
+                `${allTypes.length} call type${allTypes.length === 1 ? '' : 's'} · ` +
+                `${totalCalls.toLocaleString()} total calls in this window · sorted by frequency`;
+
+            tbody.innerHTML = allTypes.map((row, idx) => {
+                const share = totalCalls > 0 ? ((row.count / totalCalls) * 100) : 0;
+                const shareLabel = share < 0.1 && row.count > 0
+                    ? '<0.1%'
+                    : `${share.toFixed(share < 10 ? 1 : 0)}%`;
+                const onChart = chartedTypeSet.has(row.type);
+                const display = friendlyType(row.type, 64);
+                const rawTitle = row.type && row.type !== display ? escapeHtml(row.type) : escapeHtml(display);
+                return `
+                    <tr class="${onChart ? 'detail-data-row-charted' : ''}">
+                        <td class="detail-data-td-num">${idx + 1}</td>
+                        <td class="detail-data-td-type" title="${rawTitle}">
+                            <span class="detail-data-type-label">${escapeHtml(display)}</span>
+                            ${row.type && row.type !== display
+                                ? `<span class="detail-data-type-raw">${escapeHtml(row.type)}</span>`
+                                : ''}
+                        </td>
+                        <td class="detail-data-td-num">${row.count.toLocaleString()}</td>
+                        <td class="detail-data-td-num">
+                            <span class="detail-data-share-wrap">
+                                <span class="detail-data-share-bar" style="width:${Math.min(100, share)}%"></span>
+                                <span class="detail-data-share-text">${shareLabel}</span>
+                            </span>
+                        </td>
+                        <td class="detail-data-td-flag">
+                            ${onChart
+                                ? '<span class="detail-data-badge detail-data-badge-yes">Yes</span>'
+                                : '<span class="detail-data-badge detail-data-badge-no">—</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            tfoot.innerHTML = `
+                <tr>
+                    <th scope="row" colspan="2">Total</th>
+                    <td class="detail-data-td-num">${totalCalls.toLocaleString()}</td>
+                    <td class="detail-data-td-num">100%</td>
+                    <td class="detail-data-td-flag"></td>
+                </tr>
+            `;
+
+            section.hidden = false;
+        }
+
+        function renderChart(labels, datasets) {
+            const canvas = document.getElementById('fireEmsDetailChart');
+            const existing = Chart.getChart(canvas);
+            if (existing) existing.destroy();
+
+            new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#e2e8f0',
+                                font: { size: 12, family: 'Inter, system-ui, sans-serif' },
+                                boxWidth: 14,
+                                padding: 14
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e2937',
+                            titleColor: '#e2e8f0',
+                            bodyColor: '#cbd5e1',
+                            borderColor: '#475569',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 12 },
+                                precision: 0
+                            },
+                            grid: { color: '#334155' },
+                            title: {
+                                display: true,
+                                text: 'Calls',
+                                color: '#94a3b8',
+                                font: { size: 12, weight: '500' }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 12 }
+                            },
+                            grid: { color: '#334155' },
+                            title: {
+                                display: true,
+                                text: 'Date',
+                                color: '#94a3b8',
+                                font: { size: 12, weight: '500' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadDetail() {
+            const chartWrap = document.getElementById('detail-chart-wrap');
+            const dataSection = document.getElementById('detail-data-section');
+            try {
+                setStatus('Loading Fire & EMS data…', false);
+                chartWrap.hidden = true;
+                dataSection.hidden = true;
+
+                const today = startOfLocalDay(new Date());
+                const rangeStart = new Date(today);
+                rangeStart.setDate(rangeStart.getDate() - (CONFIG.lookbackDays - 1));
+                const rangeEndExclusive = today;
+
+                document.getElementById('detail-range-label').textContent =
+                    formatRangeLabel(rangeStart, rangeEndExclusive);
+
+                const startDateSql = formatQueryDate(rangeStart);
+                const endDateSql = formatQueryDate(rangeEndExclusive);
+                const where = `AlarmDate >= date'${startDateSql}' AND AlarmDate < date'${endDateSql}'`;
+                const queryBase =
+                    `${CONFIG.layerUrl}?where=${encodeURIComponent(where)}` +
+                    `&outFields=AlarmDate,Incident_Type,Emer_NEmer` +
+                    `&returnGeometry=false&f=json`;
+
+                const features = await fetchAllArcGISFeatures(queryBase);
+
+                // Build ordered day keys for the 7 completed days
+                const dayKeys = [];
+                for (let i = 0; i < CONFIG.summaryDays; i++) {
+                    const d = new Date(rangeStart);
+                    d.setDate(d.getDate() + i);
+                    dayKeys.push(formatQueryDate(d));
+                }
+
+                const chartTypeTotals = new Map(); // types eligible for the line chart
+                const allTypeTotals = new Map();   // every type for the frequency table
+                const typeByDay = new Map(); // type -> Map(dayKey -> count)
+                let totalCalls = 0;
+
+                features.forEach(f => {
+                    const a = f.attributes || {};
+                    const alarm = a.AlarmDate;
+                    if (alarm == null || alarm < rangeStart.getTime() || alarm >= rangeEndExclusive.getTime()) return;
+
+                    totalCalls += 1;
+                    const dayKey = toLocalDayKey(alarm);
+                    const rawType = String(a.Incident_Type || '').trim();
+                    const type = rawType || 'Unknown';
+                    const skipKey = rawType.toLowerCase();
+
+                    allTypeTotals.set(type, (allTypeTotals.get(type) || 0) + 1);
+
+                    // Chart series still omit noisy/non-incident labels
+                    if (CONFIG.skipTopTypes[skipKey]) return;
+
+                    chartTypeTotals.set(type, (chartTypeTotals.get(type) || 0) + 1);
+                    if (!typeByDay.has(type)) typeByDay.set(type, new Map());
+                    const dayMap = typeByDay.get(type);
+                    dayMap.set(dayKey, (dayMap.get(dayKey) || 0) + 1);
+                });
+
+                const allTypes = [...allTypeTotals.entries()]
+                    .map(([type, count]) => ({ type, count }))
+                    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+
+                const topTypes = [...chartTypeTotals.entries()]
+                    .map(([type, count]) => ({ type, count }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, CONFIG.topTypeCount);
+
+                const chartedTypeSet = new Set(topTypes.map(t => t.type));
+
+                document.getElementById('summary-total').textContent = totalCalls.toLocaleString();
+                document.getElementById('summary-types').textContent = String(topTypes.length);
+                document.getElementById('summary-all-types').textContent = String(allTypes.length);
+
+                if (!totalCalls) {
+                    setStatus('No call data available for this window.', true);
+                    return;
+                }
+
+                // Frequency table always when we have calls (even if chart has no top types)
+                renderFrequencyTable(allTypes, totalCalls, chartedTypeSet);
+
+                if (!topTypes.length) {
+                    setStatus('No chartable call types for this window (table still lists all types).', false);
+                    return;
+                }
+
+                const labels = dayKeys.map(formatDayLabel);
+                const datasets = topTypes.map((t, idx) => {
+                    const dayMap = typeByDay.get(t.type) || new Map();
+                    const color = CONFIG.lineColors[idx % CONFIG.lineColors.length];
+                    return {
+                        label: friendlyType(t.type),
+                        data: dayKeys.map(k => dayMap.get(k) || 0),
+                        borderColor: color,
+                        backgroundColor: color + '33',
+                        tension: 0.3,
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: color
+                    };
+                });
+
+                setStatus('', false);
+                chartWrap.hidden = false;
+                // Wait a tick so canvas is visible before Chart.js measures it
+                setTimeout(() => renderChart(labels, datasets), 40);
+            } catch (e) {
+                console.error(e);
+                setStatus('Unable to load Fire & EMS data. Please try again later.', true);
+                chartWrap.hidden = true;
+                dataSection.hidden = true;
+            }
+        }
+
+        loadDetail();
+    </script>
+</body>
+</html>
